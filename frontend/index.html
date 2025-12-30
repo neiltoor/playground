@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RAG Pipeline - Document Q&A</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>RAG Pipeline</h1>
+            <p class="subtitle">Upload documents and ask questions using AI</p>
+        </header>
+
+        <div class="main-content">
+            <!-- Left Panel: Upload Section -->
+            <div class="panel upload-panel">
+                <h2>Upload Documents</h2>
+
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📄</div>
+                    <p>Drag & drop files here or click to browse</p>
+                    <p class="upload-hint">Supported: PDF, TXT, DOCX, MD (Max 10MB)</p>
+                    <input type="file" id="fileInput" accept=".pdf,.txt,.docx,.md" hidden>
+                    <button class="btn btn-primary" id="browseBtn">Browse Files</button>
+                </div>
+
+                <div class="documents-section">
+                    <h3>Uploaded Documents</h3>
+                    <div id="documentsList" class="documents-list">
+                        <p class="no-documents">No documents uploaded yet</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Chat Section -->
+            <div class="panel chat-panel">
+                <h2>Ask Questions</h2>
+
+                <div class="messages-container" id="messagesContainer">
+                    <div class="welcome-message">
+                        <h3>Welcome!</h3>
+                        <p>Upload documents and start asking questions about them.</p>
+                    </div>
+                </div>
+
+                <div class="query-input-section">
+                    <form id="queryForm">
+                        <div class="input-group">
+                            <textarea
+                                id="queryInput"
+                                placeholder="Ask a question about your documents..."
+                                rows="3"
+                                required
+                            ></textarea>
+                            <button type="submit" class="btn btn-primary" id="sendBtn">
+                                <span>Send</span>
+                                <span class="send-icon">→</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="spinner"></div>
+        <p>Processing...</p>
+    </div>
+
+    <script src="js/app.js"></script>
+</body>
+</html>
