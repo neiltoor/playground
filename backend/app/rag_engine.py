@@ -2,7 +2,7 @@ import os
 from typing import Dict, List
 from datetime import datetime
 
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings, StorageContext
+from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings, StorageContext, Document
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.vector_stores.postgres import PGVectorStore
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
@@ -97,13 +97,26 @@ class RAGEngine:
                 input_files=[file_path]
             ).load_data()
 
-            # Add metadata to all documents
+            # Clean documents and add metadata
+            cleaned_documents = []
             for doc in documents:
-                doc.metadata.update(metadata)
-                doc.metadata["ingestion_date"] = datetime.utcnow().isoformat()
+                # Remove NUL characters that PostgreSQL can't handle
+                cleaned_text = doc.text.replace('\x00', '')
+
+                # Update metadata
+                doc_metadata = doc.metadata.copy()
+                doc_metadata.update(metadata)
+                doc_metadata["ingestion_date"] = datetime.utcnow().isoformat()
+
+                # Create new document with cleaned text
+                cleaned_doc = Document(
+                    text=cleaned_text,
+                    metadata=doc_metadata
+                )
+                cleaned_documents.append(cleaned_doc)
 
             # Insert into index
-            for doc in documents:
+            for doc in cleaned_documents:
                 self.index.insert(doc)
 
             # Count chunks (nodes) created
