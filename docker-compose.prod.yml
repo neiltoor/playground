@@ -1,7 +1,8 @@
 version: '3.8'
 
-# Development docker-compose (Mac ARM64)
-# For production deployment, use docker-compose.prod.yml
+# Production docker-compose (Intel AMD64)
+# Uses pre-built images from Mac build process
+# All images built on Mac via ./build-images.sh
 
 services:
   postgres:
@@ -20,10 +21,10 @@ services:
       retries: 5
     networks:
       - rag-network
+    restart: unless-stopped
 
   backend:
-    #image: the-pipeline_backend:latest
-    build: ./backend
+    image: the-pipeline_backend:amd64
     ports:
       - "8000:8000"
     environment:
@@ -34,13 +35,13 @@ services:
       - CHUNK_OVERLAP=${CHUNK_OVERLAP:-50}
       - TOP_K_RETRIEVAL=${TOP_K_RETRIEVAL:-5}
     volumes:
-      - ./backend/app:/app/app
       - /tmp/customer_docs:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
     networks:
       - rag-network
+    restart: unless-stopped
 
   frontend:
     image: nginx:alpine
@@ -53,6 +54,7 @@ services:
       - backend
     networks:
       - rag-network
+    restart: unless-stopped
 
 volumes:
   postgres_data:
