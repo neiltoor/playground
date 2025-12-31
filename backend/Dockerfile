@@ -11,8 +11,9 @@ RUN apt-get update && apt-get install -y \
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install Python dependencies with parallel downloads
+RUN pip install --upgrade pip && \
+    pip install --no-cache-dir -r requirements.txt --use-pep517
 
 # Create uploads directory
 RUN mkdir -p /app/uploads
