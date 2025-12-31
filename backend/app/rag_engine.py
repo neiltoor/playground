@@ -1,12 +1,14 @@
 import os
 from typing import Dict, List
 from datetime import datetime
+from pathlib import Path
 
-from llama_index.core import VectorStoreIndex, SimpleDirectoryReader, Settings, StorageContext, Document
+from llama_index.core import VectorStoreIndex, Settings, StorageContext, Document
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.vector_stores.postgres import PGVectorStore
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
 from llama_index.llms.anthropic import Anthropic
+from llama_index.readers.file import PyMuPDFReader, DocxReader
 
 from app.config import settings
 from app.database import get_database_url
@@ -28,7 +30,7 @@ class RAGEngine:
             # Configure global LlamaIndex settings
             Settings.llm = Anthropic(
                 api_key=settings.ANTHROPIC_API_KEY,
-                model="claude-3-5-sonnet-20241022",
+                model="claude-sonnet-4-20250514",
                 temperature=0.1
             )
 
@@ -92,19 +94,35 @@ class RAGEngine:
             raise RuntimeError("RAG engine not initialized")
 
         try:
-            # Load document
-            documents = SimpleDirectoryReader(
-                input_files=[file_path]
-            ).load_data()
+            # Determine file type and use appropriate reader
+            file_extension = Path(file_path).suffix.lower()
+
+            if file_extension == '.pdf':
+                # Use PyMuPDF for better PDF parsing
+                reader = PyMuPDFReader()
+                documents = reader.load(file_path)
+            elif file_extension in ['.docx', '.doc']:
+                # Use DOCX reader
+                reader = DocxReader()
+                documents = reader.load(file_path)
+            else:
+                # Fallback to basic text reading
+                with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                    text = f.read()
+                documents = [Document(text=text)]
 
             # Clean documents and add metadata
             cleaned_documents = []
             for doc in documents:
-                # Remove NUL characters that PostgreSQL can't handle
-                cleaned_text = doc.text.replace('\x00', '')
+                # Remove NUL characters and other problematic characters
+                cleaned_text = doc.text.replace('\x00', '').strip()
+
+                # Skip empty documents
+                if not cleaned_text:
+                    continue
 
                 # Update metadata
-                doc_metadata = doc.metadata.copy()
+                doc_metadata = doc.metadata.copy() if hasattr(doc, 'metadata') and doc.metadata else {}
                 doc_metadata.update(metadata)
                 doc_metadata["ingestion_date"] = datetime.utcnow().isoformat()
 
@@ -120,7 +138,7 @@ class RAGEngine:
                 self.index.insert(doc)
 
             # Count chunks (nodes) created
-            chunk_count = len(documents)
+            chunk_count = len(cleaned_documents)
 
             print(f"Ingested {chunk_count} chunks from {metadata.get('filename', 'unknown')}")
             return chunk_count
