@@ -15,13 +15,25 @@ This project uses Docker for containerization with multi-architecture support.
 ## Deployment Workflow
 
 ### Step 1: Build Images on Mac
+
+Build both architectures:
 ```bash
 ./build-images.sh
 ```
 
+Or build only for Intel (production):
+```bash
+./build-images.sh --intel
+```
+
+Or build only for Mac (local):
+```bash
+./build-images.sh --mac
+```
+
 This creates:
-- ARM64 images for your Mac
-- AMD64 images for Intel production server
+- ARM64 images for your Mac (with `--mac` or no flag)
+- AMD64 images for Intel production server (with `--intel` or no flag)
 - Saves all images to `./docker-images/` as compressed tar.gz files
 
 ### Step 2: Transfer to Production Server
@@ -82,12 +94,13 @@ This uses the regular `docker-compose.yml` which builds images locally and mount
 
 When you make changes:
 1. Test locally with `docker-compose up`
-2. Rebuild images: `./build-images.sh`
+2. Rebuild images for Intel: `./build-images.sh --intel`
 3. Transfer to production: `./transfer-images.sh`
 4. On production server, reload:
    ```bash
    cd /tmp/docker-images && ./load-images.sh
    cd /tmp/the-pipeline-deploy
+   docker-compose -f docker-compose.prod.yml down
    docker-compose -f docker-compose.prod.yml up -d
    ```
 
