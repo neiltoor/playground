@@ -8,6 +8,11 @@
 
 set -e
 
+# Enable BuildKit for faster builds
+export DOCKER_BUILDKIT=1
+export BUILDKIT_STEP_LOG_MAX_SIZE=50000000
+export BUILDKIT_STEP_LOG_MAX_SPEED=100000000
+
 PROJECT_NAME="the-pipeline"
 IMAGE_DIR="./docker-images"
 
