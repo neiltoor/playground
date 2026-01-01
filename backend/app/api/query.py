@@ -1,19 +1,26 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
 from app.models import QueryRequest, QueryResponse, SourceInfo
 from app.rag_engine import get_rag_engine
+from app.auth import get_current_user
 
 
 router = APIRouter()
 
 
 @router.post("/query", response_model=QueryResponse)
-async def query_documents(request: QueryRequest):
+async def query_documents(
+    request: QueryRequest,
+    username: str = Depends(get_current_user)
+):
     """
-    Query the RAG system with a question.
+    Query the RAG system with user-specific filtering.
+
+    User can only query their own documents + shared documents.
 
     Args:
         request: Query request with question and optional top_k
+        username: Current authenticated user
 
     Returns:
         Query response with answer and sources
@@ -22,9 +29,10 @@ async def query_documents(request: QueryRequest):
         # Get RAG engine
         rag_engine = get_rag_engine()
 
-        # Execute query
+        # Execute query with user filtering
         result = rag_engine.query(
             query_text=request.query,
+            user_id=username,
             top_k=request.top_k
         )
 

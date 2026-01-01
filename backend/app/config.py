@@ -28,6 +28,12 @@ class Settings:
     # Supported file types
     ALLOWED_EXTENSIONS: set = {".pdf", ".txt", ".docx", ".md"}
 
+    # Authentication settings
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRE_MINUTES: int = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 hours
+    AUTH_FILE_PATH: str = "/tmp/auth"
+
     def validate(self) -> bool:
         """Validate required settings."""
         if not self.ANTHROPIC_API_KEY:

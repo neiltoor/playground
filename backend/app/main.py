@@ -1,3 +1,6 @@
+import os
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -5,7 +8,7 @@ from app.config import settings
 from app.database import check_database_connection
 from app.rag_engine import get_rag_engine
 from app.models import HealthResponse
-from app.api import upload, query
+from app.api import upload, query, auth
 
 
 app = FastAPI(
@@ -33,8 +36,30 @@ async def startup_event():
         print("Settings validated successfully")
 
         # Initialize RAG engine
-        get_rag_engine()
+        rag_engine = get_rag_engine()
         print("RAG engine initialized")
+
+        # Auto-load default document (neiltoor.pdf)
+        default_doc_path = Path(settings.UPLOAD_DIR) / "neiltoor.pdf"
+        marker_file = Path(settings.UPLOAD_DIR) / ".neiltoor_loaded"
+
+        if default_doc_path.exists() and not marker_file.exists():
+            try:
+                metadata = {
+                    "document_id": "default-neiltoor",
+                    "filename": "neiltoor.pdf",
+                    "file_type": ".pdf",
+                    "is_default": True,
+                    "user_id": "SHARED",
+                    "is_shared": True
+                }
+                chunks = rag_engine.ingest_document(str(default_doc_path), metadata)
+                marker_file.touch()
+                print(f"Auto-loaded default document: neiltoor.pdf ({chunks} chunks)")
+            except Exception as e:
+                print(f"Warning: Could not auto-load neiltoor.pdf: {e}")
+        elif marker_file.exists():
+            print("Default document neiltoor.pdf already loaded (skipping)")
 
     except Exception as e:
         print(f"Error during startup: {e}")
@@ -58,6 +83,7 @@ async def health_check():
 
 
 # Include routers
+app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(upload.router, prefix="/api", tags=["upload"])
 app.include_router(query.router, prefix="/api", tags=["query"])
 

@@ -18,6 +18,7 @@ class DocumentInfo(BaseModel):
     filename: str
     upload_date: datetime
     chunk_count: int
+    is_shared: bool = False
 
 
 class QueryRequest(BaseModel):
@@ -47,3 +48,21 @@ class HealthResponse(BaseModel):
     database: str
     api_key_configured: bool
     message: Optional[str] = None
+
+
+class LoginRequest(BaseModel):
+    """Request model for user login."""
+    username: str = Field(..., min_length=1, description="Username")
+    password: str = Field(..., min_length=1, description="Password")
+
+
+class LoginResponse(BaseModel):
+    """Response model for successful login."""
+    access_token: str
+    token_type: str = "bearer"
+    username: str
+
+
+class UserInfo(BaseModel):
+    """Model for user information."""
+    username: str

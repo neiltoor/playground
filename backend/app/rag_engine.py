@@ -147,12 +147,13 @@ class RAGEngine:
             print(f"Error ingesting document: {e}")
             raise
 
-    def query(self, query_text: str, top_k: int = 5) -> Dict:
+    def query(self, query_text: str, user_id: str, top_k: int = 5) -> Dict:
         """
-        Query the RAG system.
+        Query the RAG system with user-specific filtering.
 
         Args:
             query_text: The question to ask
+            user_id: Current user (only search their docs + shared docs)
             top_k: Number of relevant chunks to retrieve
 
         Returns:
@@ -162,10 +163,34 @@ class RAGEngine:
             raise RuntimeError("RAG engine not initialized")
 
         try:
-            # Create query engine
+            # Create metadata filters: user's docs OR shared docs
+            from llama_index.core.vector_stores.types import (
+                MetadataFilters,
+                MetadataFilter,
+                FilterOperator,
+            )
+
+            filters = MetadataFilters(
+                filters=[
+                    MetadataFilter(
+                        key="user_id",
+                        value=user_id,
+                        operator=FilterOperator.EQ
+                    ),
+                    MetadataFilter(
+                        key="user_id",
+                        value="SHARED",
+                        operator=FilterOperator.EQ
+                    )
+                ],
+                condition="or"  # User's docs OR shared docs
+            )
+
+            # Create query engine with filters
             query_engine = self.index.as_query_engine(
                 similarity_top_k=top_k,
-                response_mode="compact"
+                response_mode="compact",
+                filters=filters
             )
 
             # Execute query

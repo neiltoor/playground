@@ -1,6 +1,10 @@
 // API Configuration
 const API_BASE_URL = '/api';
 
+// Storage keys
+const AUTH_TOKEN_KEY = 'auth_token';
+const USERNAME_KEY = 'username';
+
 // DOM Elements
 const uploadArea = document.getElementById('uploadArea');
 const fileInput = document.getElementById('fileInput');
@@ -17,9 +21,58 @@ let uploadedDocuments = [];
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+    checkAuthentication();
     initializeEventListeners();
     loadDocuments();
 });
+
+function checkAuthentication() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    if (!token) {
+        // Redirect to login
+        window.location.href = '/login.html';
+        return;
+    }
+
+    // Display username in header
+    const username = localStorage.getItem(USERNAME_KEY);
+    if (username) {
+        displayUserInfo(username);
+    }
+}
+
+function displayUserInfo(username) {
+    // Add user info to header
+    const header = document.querySelector('header');
+    if (header) {
+        const userDiv = document.createElement('div');
+        userDiv.className = 'user-info';
+        userDiv.innerHTML = `
+            <span>Logged in as: <strong>${escapeHtml(username)}</strong></span>
+            <button class="btn btn-secondary" onclick="logout()">Logout</button>
+        `;
+        header.appendChild(userDiv);
+    }
+}
+
+function logout() {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(USERNAME_KEY);
+    window.location.href = '/login.html';
+}
+
+function getAuthHeaders() {
+    const token = localStorage.getItem(AUTH_TOKEN_KEY);
+    return {
+        'Authorization': `Bearer ${token}`
+    };
+}
+
+function handleAuthError() {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    localStorage.removeItem(USERNAME_KEY);
+    window.location.href = '/login.html';
+}
 
 function initializeEventListeners() {
     // Browse button
@@ -96,8 +149,15 @@ async function handleFileUpload(file) {
 
         const response = await fetch(`${API_BASE_URL}/upload`, {
             method: 'POST',
+            headers: getAuthHeaders(),
             body: formData
         });
+
+        // Handle authentication error
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
 
         if (!response.ok) {
             const error = await response.json();
@@ -147,9 +207,11 @@ async function handleQuery() {
     const loadingMessage = addLoadingMessage();
 
     try {
+        const authHeaders = getAuthHeaders();
         const response = await fetch(`${API_BASE_URL}/query`, {
             method: 'POST',
             headers: {
+                ...authHeaders,
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
@@ -157,6 +219,12 @@ async function handleQuery() {
                 top_k: 5
             })
         });
+
+        // Handle authentication error
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
 
         if (!response.ok) {
             const error = await response.json();
@@ -184,7 +252,15 @@ async function handleQuery() {
 
 async function loadDocuments() {
     try {
-        const response = await fetch(`${API_BASE_URL}/documents`);
+        const response = await fetch(`${API_BASE_URL}/documents`, {
+            headers: getAuthHeaders()
+        });
+
+        // Handle authentication error
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
 
         if (response.ok) {
             const documents = await response.json();
@@ -205,8 +281,11 @@ function updateDocumentsList() {
     documentsList.innerHTML = uploadedDocuments.map(doc => `
         <div class="document-item">
             <div>
-                <div class="document-name">${escapeHtml(doc.filename)}</div>
-                <div class="document-meta">${doc.chunks || 0} chunks</div>
+                <div class="document-name">
+                    ${escapeHtml(doc.filename)}
+                    ${doc.is_shared ? '<span class="shared-badge">Shared</span>' : ''}
+                </div>
+                <div class="document-meta">${doc.chunk_count || 0} chunks</div>
             </div>
         </div>
     `).join('');
