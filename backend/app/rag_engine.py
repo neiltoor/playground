@@ -15,7 +15,7 @@ from app.database import get_database_url
 
 
 class RAGEngine:
-    """RAG engine using LlamaIndex with pgvector and Claude."""
+    """RAG engine using LlamaIndex with pgvector and OpenRouter."""
 
     def __init__(self):
         """Initialize the RAG engine."""
@@ -29,10 +29,12 @@ class RAGEngine:
         try:
             # Configure global LlamaIndex settings
             Settings.llm = Anthropic(
-                api_key=settings.ANTHROPIC_API_KEY,
-                model="claude-sonnet-4-20250514",
+                api_key=settings.OPENROUTER_API_KEY,
+                model=settings.LLM_MODEL,
                 temperature=0.1
             )
+
+            print(f"Using LLM model via OpenRouter: {settings.LLM_MODEL}")
 
             Settings.embed_model = HuggingFaceEmbedding(
                 model_name="sentence-transformers/all-MiniLM-L6-v2"

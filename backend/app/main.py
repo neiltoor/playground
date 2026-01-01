@@ -70,7 +70,7 @@ async def startup_event():
 async def health_check():
     """Health check endpoint."""
     db_connected = check_database_connection()
-    api_key_configured = bool(settings.ANTHROPIC_API_KEY)
+    api_key_configured = bool(settings.OPENROUTER_API_KEY)
 
     status = "healthy" if (db_connected and api_key_configured) else "unhealthy"
 
@@ -78,7 +78,7 @@ async def health_check():
         status=status,
         database="connected" if db_connected else "disconnected",
         api_key_configured=api_key_configured,
-        message="All systems operational" if status == "healthy" else "Some systems are down"
+        message=f"All systems operational (Model: {settings.LLM_MODEL})" if status == "healthy" else "Some systems are down"
     )
 
 

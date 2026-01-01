@@ -13,8 +13,12 @@ class Settings:
         "postgresql://raguser:ragpassword@postgres:5432/ragdb"
     )
 
-    # Anthropic API
-    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    # OpenRouter API
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
+
+    # LLM Model Selection
+    # Options: "x-ai/grok-beta" or "google/gemini-flash-1.5-8b"
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "google/gemini-flash-1.5-8b")
 
     # Application settings
     MAX_UPLOAD_SIZE: int = int(os.getenv("MAX_UPLOAD_SIZE", "10485760"))  # 10MB
@@ -36,8 +40,8 @@ class Settings:
 
     def validate(self) -> bool:
         """Validate required settings."""
-        if not self.ANTHROPIC_API_KEY:
-            raise ValueError("ANTHROPIC_API_KEY is required")
+        if not self.OPENROUTER_API_KEY:
+            raise ValueError("OPENROUTER_API_KEY is required")
         return True
 
 
