@@ -30,6 +30,8 @@ services:
     build: ./services/anthropic-service
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - /data/config.json:/data/config.json:ro
     networks:
       - rag-network
     healthcheck:
@@ -43,6 +45,8 @@ services:
     build: ./services/openrouter-service
     environment:
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+    volumes:
+      - /data/config.json:/data/config.json:ro
     networks:
       - rag-network
     healthcheck:

@@ -2,6 +2,7 @@
 OpenRouter LLM Service - Microservice wrapper for OpenRouter API calls (xAI Grok)
 """
 import os
+import json
 import httpx
 from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException
@@ -9,12 +10,20 @@ from pydantic import BaseModel
 
 app = FastAPI(title="OpenRouter LLM Service")
 
-# OpenRouter configuration
-API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+# Load configuration from file or environment
+def load_config():
+    config_path = "/data/config.json"
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+            return config['llm_providers']['openrouter']['api_key']
+    return os.getenv("OPENROUTER_API_KEY", "")
+
+API_KEY = load_config()
 BASE_URL = "https://openrouter.ai/api/v1"
 
 if not API_KEY:
-    print("Warning: OPENROUTER_API_KEY not set")
+    print("Warning: OPENROUTER_API_KEY not set in config or environment")
 
 
 class Message(BaseModel):

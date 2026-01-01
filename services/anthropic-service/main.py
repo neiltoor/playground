@@ -2,6 +2,7 @@
 Anthropic LLM Service - Microservice wrapper for Anthropic API calls
 """
 import os
+import json
 from typing import List, Dict, Any
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -9,10 +10,18 @@ from anthropic import Anthropic
 
 app = FastAPI(title="Anthropic LLM Service")
 
-# Initialize Anthropic client
-API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
+# Load configuration from file or environment
+def load_config():
+    config_path = "/data/config.json"
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+            return config['llm_providers']['anthropic']['api_key']
+    return os.getenv("ANTHROPIC_API_KEY", "")
+
+API_KEY = load_config()
 if not API_KEY:
-    print("Warning: ANTHROPIC_API_KEY not set")
+    print("Warning: ANTHROPIC_API_KEY not set in config or environment")
 
 client = Anthropic(api_key=API_KEY) if API_KEY else None
 
