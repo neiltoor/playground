@@ -46,6 +46,15 @@
                 </div>
 
                 <div class="query-input-section">
+                    <div class="llm-selector">
+                        <label for="providerSelect">LLM Model:</label>
+                        <select id="providerSelect" class="provider-select">
+                            <option value="openrouter">xAI Grok Beta</option>
+                            <option value="anthropic">Claude 3.5 Sonnet</option>
+                        </select>
+                        <span id="modelDisplay" class="model-display">xai/grok-beta</span>
+                    </div>
+
                     <form id="queryForm">
                         <div class="input-group">
                             <textarea

@@ -7,7 +7,7 @@ from llama_index.core import VectorStoreIndex, Settings, StorageContext, Documen
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.vector_stores.postgres import PGVectorStore
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.llms.anthropic import Anthropic
+from llama_index.llms.openai_like import OpenAILike
 from llama_index.readers.file import PyMuPDFReader, DocxReader
 
 from app.config import settings
@@ -27,14 +27,28 @@ class RAGEngine:
     def _initialize(self):
         """Initialize LlamaIndex components."""
         try:
-            # Configure global LlamaIndex settings
-            Settings.llm = Anthropic(
-                api_key=settings.OPENROUTER_API_KEY,
-                model=settings.LLM_MODEL,
-                temperature=0.1
-            )
-
-            print(f"Using LLM model via OpenRouter: {settings.LLM_MODEL}")
+            # Configure global LlamaIndex settings with OpenRouter (default)
+            # Will use OpenRouter if key is available, fallback to Anthropic
+            if settings.OPENROUTER_API_KEY:
+                Settings.llm = OpenAILike(
+                    api_key=settings.OPENROUTER_API_KEY,
+                    api_base=settings.OPENROUTER_BASE_URL,
+                    model=settings.OPENROUTER_DEFAULT_MODEL,
+                    temperature=0.1,
+                    is_chat_model=True
+                )
+                print(f"Using LLM model via OpenRouter: {settings.OPENROUTER_DEFAULT_MODEL}")
+            elif settings.ANTHROPIC_API_KEY:
+                Settings.llm = OpenAILike(
+                    api_key=settings.ANTHROPIC_API_KEY,
+                    api_base=settings.ANTHROPIC_BASE_URL,
+                    model=settings.ANTHROPIC_DEFAULT_MODEL,
+                    temperature=0.1,
+                    is_chat_model=True
+                )
+                print(f"Using LLM model via Anthropic: {settings.ANTHROPIC_DEFAULT_MODEL}")
+            else:
+                print("Warning: No LLM API key configured!")
 
             Settings.embed_model = HuggingFaceEmbedding(
                 model_name="sentence-transformers/all-MiniLM-L6-v2"
@@ -149,14 +163,16 @@ class RAGEngine:
             print(f"Error ingesting document: {e}")
             raise
 
-    def query(self, query_text: str, user_id: str, top_k: int = 5) -> Dict:
+    def query(self, query_text: str, user_id: str, top_k: int = 5, provider: str = "openrouter", model: str = "x-ai/grok-beta") -> Dict:
         """
-        Query the RAG system with user-specific filtering.
+        Query the RAG system with user-specific filtering and dynamic LLM selection.
 
         Args:
             query_text: The question to ask
             user_id: Current user (only search their docs + shared docs)
             top_k: Number of relevant chunks to retrieve
+            provider: LLM provider ("openrouter" or "anthropic")
+            model: LLM model to use
 
         Returns:
             Dictionary with answer and sources
@@ -165,6 +181,36 @@ class RAGEngine:
             raise RuntimeError("RAG engine not initialized")
 
         try:
+            # Create LLM instance based on provider with provider-specific configuration
+            # Both providers now use OpenRouter but with different models
+            if provider == "anthropic":
+                # Use Anthropic models via OpenRouter
+                api_key = settings.ANTHROPIC_API_KEY or settings.OPENROUTER_API_KEY
+                if not api_key:
+                    raise RuntimeError("No API key configured for Anthropic in /data/config.json")
+
+                llm = OpenAILike(
+                    api_key=api_key,
+                    api_base=settings.ANTHROPIC_BASE_URL,
+                    model=model,
+                    temperature=0.1,
+                    is_chat_model=True
+                )
+                print(f"Query using Anthropic model via OpenRouter: {model}")
+            else:
+                # Use OpenRouter with xAI or other models
+                if not settings.OPENROUTER_API_KEY:
+                    raise RuntimeError("OpenRouter API key not configured in /data/config.json")
+
+                llm = OpenAILike(
+                    api_key=settings.OPENROUTER_API_KEY,
+                    api_base=settings.OPENROUTER_BASE_URL,
+                    model=model,
+                    temperature=0.1,
+                    is_chat_model=True
+                )
+                print(f"Query using OpenRouter with model: {model}")
+
             # Create metadata filters: user's docs OR shared docs
             from llama_index.core.vector_stores.types import (
                 MetadataFilters,
@@ -188,11 +234,12 @@ class RAGEngine:
                 condition="or"  # User's docs OR shared docs
             )
 
-            # Create query engine with filters
+            # Create query engine with filters and dynamic LLM
             query_engine = self.index.as_query_engine(
                 similarity_top_k=top_k,
                 response_mode="compact",
-                filters=filters
+                filters=filters,
+                llm=llm  # Use the dynamically created LLM
             )
 
             # Execute query

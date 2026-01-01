@@ -88,7 +88,7 @@ async def upload_document(
             }, f)
 
         # Keep the file for persistent storage (don't delete)
-        # File is now stored in /app/uploads which is mounted to /tmp/customer_docs
+        # File is now stored in /app/uploads which is mounted to /data/customer_docs
 
         return UploadResponse(
             document_id=document_id,

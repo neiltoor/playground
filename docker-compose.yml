@@ -37,8 +37,9 @@ services:
       - TOP_K_RETRIEVAL=${TOP_K_RETRIEVAL:-5}
     volumes:
       - ./backend/app:/app/app
-      - /tmp/customer_docs:/app/uploads
-      - /tmp/auth:/tmp/auth:ro
+      - /data/customer_docs:/app/uploads
+      - /data/auth:/data/auth:ro
+      - /data/config.json:/data/config.json:ro
     depends_on:
       postgres:
         condition: service_healthy

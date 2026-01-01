@@ -14,7 +14,7 @@ async def login(request: LoginRequest):
     """
     Authenticate user and return JWT token.
 
-    Reads credentials from /tmp/auth file (username:password format).
+    Reads credentials from /data/auth file (username:password format).
     Returns JWT token valid for 24 hours.
 
     Args:
@@ -28,7 +28,7 @@ async def login(request: LoginRequest):
         HTTPException 500: If auth file is missing or malformed
     """
     try:
-        # Authenticate against /tmp/auth file
+        # Authenticate against /data/auth file
         if not authenticate_user(request.username, request.password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

@@ -15,9 +15,17 @@ const queryForm = document.getElementById('queryForm');
 const queryInput = document.getElementById('queryInput');
 const sendBtn = document.getElementById('sendBtn');
 const loadingOverlay = document.getElementById('loadingOverlay');
+const providerSelect = document.getElementById('providerSelect');
+const modelDisplay = document.getElementById('modelDisplay');
 
 // State
 let uploadedDocuments = [];
+
+// LLM Provider Configuration
+const LLM_MODELS = {
+    openrouter: 'xai/grok-beta',
+    anthropic: 'anthropic/claude-3.5-sonnet'
+};
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -111,6 +119,13 @@ function initializeEventListeners() {
         }
     });
 
+    // Provider selection change
+    providerSelect.addEventListener('change', (e) => {
+        const provider = e.target.value;
+        const model = LLM_MODELS[provider];
+        modelDisplay.textContent = model;
+    });
+
     // Query form
     queryForm.addEventListener('submit', (e) => {
         e.preventDefault();
@@ -196,6 +211,10 @@ async function handleQuery() {
     //     return;
     // }
 
+    // Get selected provider and model
+    const provider = providerSelect.value;
+    const model = LLM_MODELS[provider];
+
     // Disable input
     queryInput.disabled = true;
     sendBtn.disabled = true;
@@ -217,7 +236,9 @@ async function handleQuery() {
             },
             body: JSON.stringify({
                 query: query,
-                top_k: 5
+                top_k: 5,
+                provider: provider,
+                model: model
             })
         });
 

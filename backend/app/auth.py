@@ -12,7 +12,7 @@ from jose import JWTError, jwt
 SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 hours
-AUTH_FILE_PATH = "/tmp/auth"
+AUTH_FILE_PATH = "/data/auth"
 
 # Security scheme
 security = HTTPBearer()
@@ -20,7 +20,7 @@ security = HTTPBearer()
 
 def read_auth_file() -> Dict[str, str]:
     """
-    Read and parse the /tmp/auth file.
+    Read and parse the /data/auth file.
 
     Format: username:password (one per line)
 
@@ -73,7 +73,7 @@ def read_auth_file() -> Dict[str, str]:
 
 def authenticate_user(username: str, password: str) -> bool:
     """
-    Authenticate user against /tmp/auth file.
+    Authenticate user against /data/auth file.
 
     Args:
         username: Username to authenticate

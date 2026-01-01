@@ -29,11 +29,13 @@ async def query_documents(
         # Get RAG engine
         rag_engine = get_rag_engine()
 
-        # Execute query with user filtering
+        # Execute query with user filtering and selected LLM provider/model
         result = rag_engine.query(
             query_text=request.query,
             user_id=username,
-            top_k=request.top_k
+            top_k=request.top_k,
+            provider=request.provider,
+            model=request.model
         )
 
         # Convert sources to SourceInfo models
