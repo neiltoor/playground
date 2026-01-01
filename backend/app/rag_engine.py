@@ -1,4 +1,8 @@
+"""
+RAG Engine V2 - Microservices architecture with separated LLM calls
+"""
 import os
+import httpx
 from typing import Dict, List
 from datetime import datetime
 from pathlib import Path
@@ -7,7 +11,6 @@ from llama_index.core import VectorStoreIndex, Settings, StorageContext, Documen
 from llama_index.core.node_parser import SentenceSplitter
 from llama_index.vector_stores.postgres import PGVectorStore
 from llama_index.embeddings.huggingface import HuggingFaceEmbedding
-from llama_index.llms.openai_like import OpenAILike
 from llama_index.readers.file import PyMuPDFReader, DocxReader
 
 from app.config import settings
@@ -15,7 +18,7 @@ from app.database import get_database_url
 
 
 class RAGEngine:
-    """RAG engine using LlamaIndex with pgvector and OpenRouter."""
+    """RAG engine using LlamaIndex with pgvector and microservice LLM calls."""
 
     def __init__(self):
         """Initialize the RAG engine."""
@@ -25,31 +28,9 @@ class RAGEngine:
         self._initialize()
 
     def _initialize(self):
-        """Initialize LlamaIndex components."""
+        """Initialize LlamaIndex components (embedding and vector store only)."""
         try:
-            # Configure global LlamaIndex settings with OpenRouter (default)
-            # Will use OpenRouter if key is available, fallback to Anthropic
-            if settings.OPENROUTER_API_KEY:
-                Settings.llm = OpenAILike(
-                    api_key=settings.OPENROUTER_API_KEY,
-                    api_base=settings.OPENROUTER_BASE_URL,
-                    model=settings.OPENROUTER_DEFAULT_MODEL,
-                    temperature=0.1,
-                    is_chat_model=True
-                )
-                print(f"Using LLM model via OpenRouter: {settings.OPENROUTER_DEFAULT_MODEL}")
-            elif settings.ANTHROPIC_API_KEY:
-                Settings.llm = OpenAILike(
-                    api_key=settings.ANTHROPIC_API_KEY,
-                    api_base=settings.ANTHROPIC_BASE_URL,
-                    model=settings.ANTHROPIC_DEFAULT_MODEL,
-                    temperature=0.1,
-                    is_chat_model=True
-                )
-                print(f"Using LLM model via Anthropic: {settings.ANTHROPIC_DEFAULT_MODEL}")
-            else:
-                print("Warning: No LLM API key configured!")
-
+            # Configure embeddings (no LLM needed for initialization)
             Settings.embed_model = HuggingFaceEmbedding(
                 model_name="sentence-transformers/all-MiniLM-L6-v2"
             )
@@ -89,7 +70,7 @@ class RAGEngine:
                 )
 
             self.initialized = True
-            print("RAG engine initialized successfully")
+            print("RAG engine initialized successfully (microservices mode)")
 
         except Exception as e:
             print(f"Error initializing RAG engine: {e}")
@@ -114,15 +95,12 @@ class RAGEngine:
             file_extension = Path(file_path).suffix.lower()
 
             if file_extension == '.pdf':
-                # Use PyMuPDF for better PDF parsing
                 reader = PyMuPDFReader()
                 documents = reader.load(file_path)
             elif file_extension in ['.docx', '.doc']:
-                # Use DOCX reader
                 reader = DocxReader()
                 documents = reader.load(file_path)
             else:
-                # Fallback to basic text reading
                 with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                     text = f.read()
                 documents = [Document(text=text)]
@@ -130,19 +108,14 @@ class RAGEngine:
             # Clean documents and add metadata
             cleaned_documents = []
             for doc in documents:
-                # Remove NUL characters and other problematic characters
                 cleaned_text = doc.text.replace('\x00', '').strip()
-
-                # Skip empty documents
                 if not cleaned_text:
                     continue
 
-                # Update metadata
                 doc_metadata = doc.metadata.copy() if hasattr(doc, 'metadata') and doc.metadata else {}
                 doc_metadata.update(metadata)
                 doc_metadata["ingestion_date"] = datetime.utcnow().isoformat()
 
-                # Create new document with cleaned text
                 cleaned_doc = Document(
                     text=cleaned_text,
                     metadata=doc_metadata
@@ -153,9 +126,7 @@ class RAGEngine:
             for doc in cleaned_documents:
                 self.index.insert(doc)
 
-            # Count chunks (nodes) created
             chunk_count = len(cleaned_documents)
-
             print(f"Ingested {chunk_count} chunks from {metadata.get('filename', 'unknown')}")
             return chunk_count
 
@@ -163,9 +134,16 @@ class RAGEngine:
             print(f"Error ingesting document: {e}")
             raise
 
-    def query(self, query_text: str, user_id: str, top_k: int = 5, provider: str = "openrouter", model: str = "x-ai/grok-beta") -> Dict:
+    async def query(
+        self,
+        query_text: str,
+        user_id: str,
+        top_k: int = 5,
+        provider: str = "openrouter",
+        model: str = "x-ai/grok-beta"
+    ) -> Dict:
         """
-        Query the RAG system with user-specific filtering and dynamic LLM selection.
+        Query the RAG system with user-specific filtering and microservice LLM calls.
 
         Args:
             query_text: The question to ask
@@ -181,37 +159,7 @@ class RAGEngine:
             raise RuntimeError("RAG engine not initialized")
 
         try:
-            # Create LLM instance based on provider with provider-specific configuration
-            # Both providers now use OpenRouter but with different models
-            if provider == "anthropic":
-                # Use Anthropic models via OpenRouter
-                api_key = settings.ANTHROPIC_API_KEY or settings.OPENROUTER_API_KEY
-                if not api_key:
-                    raise RuntimeError("No API key configured for Anthropic in /data/config.json")
-
-                llm = OpenAILike(
-                    api_key=api_key,
-                    api_base=settings.ANTHROPIC_BASE_URL,
-                    model=model,
-                    temperature=0.1,
-                    is_chat_model=True
-                )
-                print(f"Query using Anthropic model via OpenRouter: {model}")
-            else:
-                # Use OpenRouter with xAI or other models
-                if not settings.OPENROUTER_API_KEY:
-                    raise RuntimeError("OpenRouter API key not configured in /data/config.json")
-
-                llm = OpenAILike(
-                    api_key=settings.OPENROUTER_API_KEY,
-                    api_base=settings.OPENROUTER_BASE_URL,
-                    model=model,
-                    temperature=0.1,
-                    is_chat_model=True
-                )
-                print(f"Query using OpenRouter with model: {model}")
-
-            # Create metadata filters: user's docs OR shared docs
+            # Step 1: Retrieve relevant documents using vector similarity
             from llama_index.core.vector_stores.types import (
                 MetadataFilters,
                 MetadataFilter,
@@ -231,38 +179,80 @@ class RAGEngine:
                         operator=FilterOperator.EQ
                     )
                 ],
-                condition="or"  # User's docs OR shared docs
+                condition="or"
             )
 
-            # Create query engine with filters and dynamic LLM
-            query_engine = self.index.as_query_engine(
+            # Get retriever
+            retriever = self.index.as_retriever(
                 similarity_top_k=top_k,
-                response_mode="compact",
-                filters=filters,
-                llm=llm  # Use the dynamically created LLM
+                filters=filters
             )
 
-            # Execute query
-            response = query_engine.query(query_text)
+            # Retrieve relevant nodes
+            nodes = retriever.retrieve(query_text)
 
             # Extract sources
             sources = []
-            if hasattr(response, 'source_nodes'):
-                for node in response.source_nodes:
-                    source = {
-                        "text": node.text,
-                        "score": node.score if hasattr(node, 'score') else 0.0,
-                        "filename": node.metadata.get("filename", "unknown"),
-                        "document_id": node.metadata.get("document_id", "unknown")
+            context_texts = []
+            for node in nodes:
+                source = {
+                    "text": node.text,
+                    "score": node.score if hasattr(node, 'score') else 0.0,
+                    "filename": node.metadata.get("filename", "unknown"),
+                    "document_id": node.metadata.get("document_id", "unknown")
+                }
+                sources.append(source)
+                context_texts.append(node.text)
+
+            # Step 2: Call appropriate LLM microservice
+            service_urls = {
+                "anthropic": "http://anthropic-service:8001",
+                "openrouter": "http://openrouter-service:8002"
+            }
+
+            if provider not in service_urls:
+                raise ValueError(f"Unknown provider: {provider}")
+
+            # Build prompt with context
+            context = "\n\n".join([f"Document {i+1}:\n{text}" for i, text in enumerate(context_texts)])
+
+            prompt = f"""Based on the following context documents, please answer the question.
+
+Context:
+{context}
+
+Question: {query_text}
+
+Please provide a detailed answer based on the context provided. If the context doesn't contain enough information to answer the question, say so."""
+
+            # Call LLM service
+            async with httpx.AsyncClient(timeout=120.0) as client:
+                response = await client.post(
+                    f"{service_urls[provider]}/chat",
+                    json={
+                        "messages": [
+                            {"role": "user", "content": prompt}
+                        ],
+                        "model": model,
+                        "temperature": 0.1,
+                        "max_tokens": 4096
                     }
-                    sources.append(source)
+                )
+                response.raise_for_status()
+                data = response.json()
+                answer = data["content"]
+
+            print(f"Query completed using {provider} ({model})")
 
             return {
-                "answer": str(response),
+                "answer": answer,
                 "sources": sources,
                 "query": query_text
             }
 
+        except httpx.HTTPError as e:
+            print(f"Error calling LLM service: {e}")
+            raise RuntimeError(f"LLM service error: {str(e)}")
         except Exception as e:
             print(f"Error querying RAG system: {e}")
             raise
@@ -270,7 +260,6 @@ class RAGEngine:
     def get_document_count(self) -> int:
         """Get the total number of documents in the system."""
         try:
-            # This is a simplified count - in production you'd query the vector store
             return 0
         except Exception as e:
             print(f"Error getting document count: {e}")
