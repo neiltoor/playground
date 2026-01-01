@@ -3,45 +3,45 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RAG Pipeline - Document Q&A</title>
+    <title>Resume Comparison Tool</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>RAG Pipeline</h1>
-            <p class="subtitle">Upload documents and ask questions using AI</p>
+            <h1>Resume Comparison Tool</h1>
+            <p class="subtitle">Compare candidate resumes with Neil Toor to find the best match (totally unbiased)</p>
         </header>
 
         <div class="main-content">
             <!-- Left Panel: Upload Section -->
             <div class="panel upload-panel">
-                <h2>Upload Documents</h2>
+                <h2>Candidate Resumes</h2>
 
                 <div class="upload-area" id="uploadArea">
                     <div class="upload-icon">📄</div>
-                    <p>Drag & drop files here or click to browse</p>
+                    <p>Drag & drop candidate resumes here or click to browse</p>
                     <p class="upload-hint">Supported: PDF, TXT, DOCX, MD (Max 10MB)</p>
                     <input type="file" id="fileInput" accept=".pdf,.txt,.docx,.md" hidden>
                     <button class="btn btn-primary" id="browseBtn">Browse Files</button>
                 </div>
 
                 <div class="documents-section">
-                    <h3>Uploaded Documents</h3>
+                    <h3>Uploaded Resumes</h3>
                     <div id="documentsList" class="documents-list">
-                        <p class="no-documents">No documents uploaded yet</p>
+                        <p class="no-documents">No resumes uploaded yet</p>
                     </div>
                 </div>
             </div>
 
             <!-- Right Panel: Chat Section -->
             <div class="panel chat-panel">
-                <h2>Ask Questions</h2>
+                <h2>Compare & Analyze</h2>
 
                 <div class="messages-container" id="messagesContainer">
                     <div class="welcome-message">
                         <h3>Welcome!</h3>
-                        <p>Upload documents and start asking questions about them.</p>
+                        <p>Upload candidate resumes and ask comparison questions. Neil Toor's resume is already loaded as the baseline.</p>
                     </div>
                 </div>
 
@@ -50,12 +50,12 @@
                         <div class="input-group">
                             <textarea
                                 id="queryInput"
-                                placeholder="Ask a question about your documents..."
+                                placeholder="e.g., 'Compare this candidate's AWS experience with Neil's' or 'Who has more Kubernetes expertise?'"
                                 rows="3"
                                 required
                             ></textarea>
                             <button type="submit" class="btn btn-primary" id="sendBtn">
-                                <span>Send</span>
+                                <span>Compare</span>
                                 <span class="send-icon">→</span>
                             </button>
                         </div>

@@ -88,16 +88,16 @@ function initializeEventListeners() {
     // Drag and drop
     uploadArea.addEventListener('dragover', (e) => {
         e.preventDefault();
-        uploadArea.classList.add('dragging');
+        uploadArea.classList.add('dragover');
     });
 
     uploadArea.addEventListener('dragleave', () => {
-        uploadArea.classList.remove('dragging');
+        uploadArea.classList.remove('dragover');
     });
 
     uploadArea.addEventListener('drop', (e) => {
         e.preventDefault();
-        uploadArea.classList.remove('dragging');
+        uploadArea.classList.remove('dragover');
 
         if (e.dataTransfer.files.length > 0) {
             handleFileUpload(e.dataTransfer.files[0]);
@@ -167,7 +167,7 @@ async function handleFileUpload(file) {
         const result = await response.json();
 
         hideLoading();
-        showSuccess(`Document "${result.filename}" uploaded successfully! Created ${result.chunks_created} chunks.`);
+        showSuccess(`Resume "${result.filename}" uploaded successfully! Ready for comparison.`);
 
         // Add to uploaded documents
         uploadedDocuments.push({
@@ -190,10 +190,11 @@ async function handleQuery() {
 
     if (!query) return;
 
-    if (uploadedDocuments.length === 0) {
-        showError('Please upload at least one document before asking questions');
-        return;
-    }
+    // Allow queries even with just the baseline (Neil's resume)
+    // if (uploadedDocuments.length === 0) {
+    //     showError('Please upload at least one resume before comparing');
+    //     return;
+    // }
 
     // Disable input
     queryInput.disabled = true;
@@ -274,7 +275,7 @@ async function loadDocuments() {
 
 function updateDocumentsList() {
     if (uploadedDocuments.length === 0) {
-        documentsList.innerHTML = '<p class="no-documents">No documents uploaded yet</p>';
+        documentsList.innerHTML = '<p class="no-documents">No resumes uploaded yet</p>';
         return;
     }
 
@@ -283,7 +284,7 @@ function updateDocumentsList() {
             <div>
                 <div class="document-name">
                     ${escapeHtml(doc.filename)}
-                    ${doc.is_shared ? '<span class="shared-badge">Shared</span>' : ''}
+                    ${doc.is_shared ? '<span class="shared-badge">Baseline</span>' : ''}
                 </div>
                 <div class="document-meta">${doc.chunk_count || 0} chunks</div>
             </div>
@@ -299,18 +300,19 @@ function addMessage(text, type, sources = null) {
     }
 
     const messageDiv = document.createElement('div');
-    messageDiv.className = `message message-${type}`;
+    messageDiv.className = `message ${type}`;
+
+    const label = type === 'user' ? 'You' : 'Assistant';
 
     let sourcesHtml = '';
     if (sources && sources.length > 0) {
         sourcesHtml = `
             <div class="message-sources">
-                <h4>Sources:</h4>
+                <h4>Sources</h4>
                 ${sources.map(source => `
                     <div class="source-item">
                         <div class="source-filename">${escapeHtml(source.filename || 'Unknown')}</div>
                         <div class="source-text">${escapeHtml(truncateText(source.text, 150))}</div>
-                        <div class="source-score">Relevance: ${(source.score * 100).toFixed(1)}%</div>
                     </div>
                 `).join('')}
             </div>
@@ -318,8 +320,9 @@ function addMessage(text, type, sources = null) {
     }
 
     messageDiv.innerHTML = `
-        <div class="message-bubble">
-            ${escapeHtml(text)}
+        <div class="message-label">${label}</div>
+        <div class="message-content">
+            ${formatMessageText(text)}
             ${sourcesHtml}
         </div>
     `;
@@ -332,10 +335,16 @@ function addMessage(text, type, sources = null) {
 
 function addLoadingMessage() {
     const loadingDiv = document.createElement('div');
-    loadingDiv.className = 'message message-assistant';
+    loadingDiv.className = 'loading-message';
     loadingDiv.innerHTML = `
-        <div class="message-bubble">
-            <em>Thinking...</em>
+        <div class="message-label">Assistant</div>
+        <div class="message-content">
+            <span>Thinking</span>
+            <div class="loading-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
         </div>
     `;
     messagesContainer.appendChild(loadingDiv);
@@ -378,6 +387,35 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function formatMessageText(text) {
+    // Escape HTML first
+    let formatted = escapeHtml(text);
+
+    // Convert markdown-style bold **text** to <strong>
+    formatted = formatted.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+    // Convert markdown-style italic *text* to <em>
+    formatted = formatted.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+    // Convert line breaks to <br>
+    formatted = formatted.replace(/\n/g, '<br>');
+
+    // Convert bullet points (lines starting with - or *)
+    formatted = formatted.replace(/^[\-\*]\s+(.+)$/gm, '<li>$1</li>');
+
+    // Wrap consecutive list items in <ul>
+    formatted = formatted.replace(/(<li>.*<\/li>(?:<br>)?)+/g, (match) => {
+        // Remove <br> tags between list items
+        const cleaned = match.replace(/<br>/g, '');
+        return '<ul>' + cleaned + '</ul>';
+    });
+
+    // Add spacing after headers (lines ending with :)
+    formatted = formatted.replace(/^(.+:)<br>/gm, '<div class="text-header">$1</div>');
+
+    return formatted;
 }
 
 function truncateText(text, maxLength) {
