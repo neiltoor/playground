@@ -25,8 +25,8 @@ class QueryRequest(BaseModel):
     """Request model for RAG query."""
     query: str = Field(..., min_length=1, description="The question to ask")
     top_k: Optional[int] = Field(5, ge=1, le=20, description="Number of relevant chunks to retrieve")
-    provider: Optional[str] = Field("openrouter", description="LLM provider: 'openrouter' or 'anthropic'")
-    model: Optional[str] = Field("x-ai/grok-beta", description="LLM model to use")
+    provider: Optional[str] = Field("anthropic", description="LLM provider: 'openrouter' or 'anthropic'")
+    model: Optional[str] = Field("claude-3-haiku-20240307", description="LLM model to use")
 
 
 class SourceInfo(BaseModel):

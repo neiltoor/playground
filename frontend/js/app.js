@@ -23,8 +23,8 @@ let uploadedDocuments = [];
 
 // LLM Provider Configuration
 const LLM_MODELS = {
-    openrouter: 'xai/grok-beta',
-    anthropic: 'anthropic/claude-3.5-sonnet'
+    openrouter: 'anthropic/claude-3-haiku',
+    anthropic: 'claude-3-haiku-20240307'
 };
 
 // Initialize
