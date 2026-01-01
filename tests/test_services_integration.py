@@ -37,7 +37,7 @@ def test_anthropic_chat_basic():
         "messages": [
             {"role": "user", "content": "Say 'test successful' and nothing else."}
         ],
-        "model": "claude-3-5-sonnet-20241022",
+        "model": "claude-3-haiku-20240307",
         "temperature": 0.1,
         "max_tokens": 50
     }
@@ -101,7 +101,7 @@ def test_anthropic_chat_with_context():
             {"role": "assistant", "content": "I'm Claude, an AI assistant."},
             {"role": "user", "content": "What can you help me with?"}
         ],
-        "model": "claude-3-5-sonnet-20241022",
+        "model": "claude-3-haiku-20240307",
         "temperature": 0.3,
         "max_tokens": 100
     }
