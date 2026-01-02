@@ -68,7 +68,7 @@ def test_openrouter_chat_basic():
         "messages": [
             {"role": "user", "content": "Say 'test successful' and nothing else."}
         ],
-        "model": "anthropic/claude-3-haiku",
+        "model": "openai/gpt-4o-mini",
         "temperature": 0.1,
         "max_tokens": 50
     }

@@ -23,7 +23,7 @@ let uploadedDocuments = [];
 
 // LLM Provider Configuration
 const LLM_MODELS = {
-    openrouter: 'anthropic/claude-3-haiku',
+    openrouter: 'openai/gpt-4o-mini',
     anthropic: 'claude-3-haiku-20240307'
 };
 
