@@ -1,14 +1,24 @@
-# RAG Pipeline
+# RAG Pipeline & LLM Comparison Tool
 
-A document Q&A application using Retrieval-Augmented Generation (RAG) with LlamaIndex, Claude API, and pgvector.
+A microservices-based application featuring document Q&A using RAG (Retrieval-Augmented Generation) and side-by-side LLM comparison between Claude and Grok.
 
 ## Features
 
+### Resume Comparison Tool (RAG)
 - Upload documents (PDF, TXT, DOCX, MD)
 - Automatic document chunking and embedding
 - Vector similarity search with pgvector
-- Q&A powered by Claude AI
-- Simple web UI for document management and queries
+- Q&A powered by Claude or Grok
+
+### LLM Comparison Tool
+- Side-by-side comparison of Claude (Anthropic) and Grok (xAI via OpenRouter)
+- Send the same prompt to both LLMs simultaneously
+- Compare responses and token usage
+
+### General
+- JWT authentication
+- Multiple LLM provider support (Anthropic + OpenRouter)
+- Premium glassmorphism UI
 - Everything runs locally with Docker Compose
 
 ## Tech Stack
@@ -16,49 +26,70 @@ A document Q&A application using Retrieval-Augmented Generation (RAG) with Llama
 - **Backend**: FastAPI (Python)
 - **Vector Database**: PostgreSQL + pgvector
 - **RAG Framework**: LlamaIndex
-- **LLM**: Claude API (Anthropic)
-- **Frontend**: HTML/CSS/JavaScript
-- **Deployment**: Docker Compose
+- **LLM Providers**: Anthropic (Claude), OpenRouter (Grok/xAI)
+- **Frontend**: HTML/CSS/JavaScript (Vanilla)
+- **Deployment**: Docker Compose (Microservices)
 
 ## Architecture
 
 ```
-┌─────────────┐      ┌─────────────┐      ┌──────────────┐
-│   Frontend  │─────▶│   Backend   │─────▶│  PostgreSQL  │
-│  (Nginx)    │      │  (FastAPI)  │      │  (pgvector)  │
-│  Port 8080  │      │  Port 8000  │      │              │
-└─────────────┘      └─────────────┘      └──────────────┘
-                            │
-                            ▼
-                     ┌─────────────┐
-                     │  Claude API │
-                     │  (Anthropic)│
-                     └─────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                      Frontend (Nginx)                            │
+│                         Port 8080                                │
+│  login.html → landing.html → resume.html OR llm-compare.html    │
+└─────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                    Backend (FastAPI)                             │
+│                        Port 8000                                 │
+│  /api/login, /api/upload, /api/query, /api/llm-compare          │
+└─────────────────────────────────────────────────────────────────┘
+          │                    │                    │
+          ▼                    ▼                    ▼
+┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
+│ Anthropic Service│  │ OpenRouter Svc   │  │   PostgreSQL     │
+│    Port 8001     │  │    Port 8002     │  │   (pgvector)     │
+│  Claude API      │  │  Grok/xAI API    │  │                  │
+└──────────────────┘  └──────────────────┘  └──────────────────┘
 ```
 
 ## Prerequisites
 
 - Docker and Docker Compose
-- Anthropic API key ([Get one here](https://console.anthropic.com/))
+- API Keys:
+  - Anthropic API key ([Get one here](https://console.anthropic.com/))
+  - OpenRouter API key ([Get one here](https://openrouter.ai/))
 
 ## Quick Start
 
-### 1. Clone the repository
+### 1. Clone and navigate to the repository
 
 ```bash
 cd the-pipeline
 ```
 
-### 2. Set up environment variables
+### 2. Set up configuration
 
-```bash
-cp .env.example .env
+Create `/data/config.json` with your API keys:
+
+```json
+{
+  "llm_providers": {
+    "anthropic": {
+      "api_key": "sk-ant-..."
+    },
+    "openrouter": {
+      "api_key": "sk-or-..."
+    }
+  }
+}
 ```
 
-Edit `.env` and add your Anthropic API key:
+Create `/data/auth` with login credentials (username:password format):
 
 ```
-ANTHROPIC_API_KEY=your_api_key_here
+admin:your_password_here
 ```
 
 ### 3. Start the application
@@ -67,11 +98,12 @@ ANTHROPIC_API_KEY=your_api_key_here
 docker-compose up --build
 ```
 
-This will:
-- Build the backend container
-- Start PostgreSQL with pgvector
-- Start the Nginx frontend server
-- Initialize the RAG engine
+This will start:
+- PostgreSQL with pgvector
+- Anthropic LLM service
+- OpenRouter LLM service
+- Backend API server
+- Nginx frontend server
 
 ### 4. Access the application
 
@@ -79,122 +111,175 @@ This will:
 - **API Docs**: http://localhost:8000/docs
 - **Health Check**: http://localhost:8000/api/health
 
-## Usage
+## User Flow
 
-### Upload Documents
-
-1. Open http://localhost:8080 in your browser
-2. Click "Browse Files" or drag and drop a document
-3. Supported formats: PDF, TXT, DOCX, MD (max 10MB)
-4. Wait for the document to be processed and chunked
-
-### Ask Questions
-
-1. Type your question in the chat input
-2. Click "Send" or press Enter
-3. The system will:
-   - Retrieve relevant document chunks
-   - Send context to Claude API
-   - Display the answer with sources
+1. **Login** at http://localhost:8080
+2. **Choose a tool** from the landing page:
+   - **Resume Comparison**: Upload documents and ask questions (RAG)
+   - **LLM Comparison**: Compare Claude vs Grok responses side-by-side
 
 ## API Endpoints
 
-### Health Check
+### Authentication
+
 ```
-GET /api/health
+POST /api/login
+Content-Type: application/json
+
+Body: { "username": "...", "password": "..." }
+Response: { "access_token": "...", "token_type": "bearer", "username": "..." }
 ```
 
-### Upload Document
+```
+GET /api/me
+Authorization: Bearer <token>
+
+Response: { "username": "..." }
+```
+
+### LLM Comparison
+
+```
+POST /api/llm-compare
+Authorization: Bearer <token>
+Content-Type: application/json
+
+Body: {
+  "prompt": "Your question here",
+  "anthropic_model": "claude-3-haiku-20240307",
+  "openrouter_model": "x-ai/grok-3-mini"
+}
+
+Response: {
+  "prompt": "...",
+  "anthropic": { "content": "...", "model": "...", "usage": {...} },
+  "openrouter": { "content": "...", "model": "...", "usage": {...} }
+}
+```
+
+### RAG Documents
+
 ```
 POST /api/upload
+Authorization: Bearer <token>
 Content-Type: multipart/form-data
 
-Response:
-{
+Response: {
   "document_id": "uuid",
   "filename": "example.pdf",
   "status": "success",
-  "chunks_created": 15,
-  "message": "..."
+  "chunks_created": 15
 }
 ```
 
-### Query Documents
-```
-POST /api/query
-Content-Type: application/json
-
-Body:
-{
-  "query": "What is the main topic?",
-  "top_k": 5
-}
-
-Response:
-{
-  "answer": "The main topic is...",
-  "sources": [...],
-  "query": "What is the main topic?"
-}
-```
-
-### List Documents
 ```
 GET /api/documents
+Authorization: Bearer <token>
 
-Response:
-[
-  {
-    "id": "uuid",
-    "filename": "example.pdf",
-    "upload_date": "2025-01-01T00:00:00",
-    "chunk_count": 15
-  }
-]
+Response: [{ "id": "...", "filename": "...", "upload_date": "...", "chunk_count": 15 }]
+```
+
+```
+POST /api/query
+Authorization: Bearer <token>
+Content-Type: application/json
+
+Body: { "query": "What is...?", "top_k": 5, "provider": "anthropic" }
+Response: { "answer": "...", "sources": [...], "query": "..." }
+```
+
+### Health
+
+```
+GET /api/health
+
+Response: { "status": "healthy", "database": "connected", "api_key_configured": true }
 ```
 
 ## Configuration
 
-Environment variables in `.env`:
+### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | - | Your Anthropic API key (required) |
+| `ANTHROPIC_API_KEY` | - | Anthropic API key |
+| `OPENROUTER_API_KEY` | - | OpenRouter API key |
 | `POSTGRES_USER` | raguser | PostgreSQL username |
 | `POSTGRES_PASSWORD` | ragpassword | PostgreSQL password |
 | `POSTGRES_DB` | ragdb | PostgreSQL database name |
 | `MAX_UPLOAD_SIZE` | 10485760 | Max file size in bytes (10MB) |
-| `CHUNK_SIZE` | 512 | Number of tokens per chunk |
+| `CHUNK_SIZE` | 512 | Tokens per chunk |
 | `CHUNK_OVERLAP` | 50 | Token overlap between chunks |
 | `TOP_K_RETRIEVAL` | 5 | Number of chunks to retrieve |
+| `JWT_SECRET_KEY` | dev-secret-key | JWT signing key (change in production) |
+| `JWT_EXPIRE_MINUTES` | 1440 | Token expiration (24 hours) |
+
+### Config File
+
+API keys can also be set in `/data/config.json`:
+
+```json
+{
+  "llm_providers": {
+    "anthropic": {
+      "api_key": "sk-ant-...",
+      "default_model": "claude-3-5-sonnet-20241022"
+    },
+    "openrouter": {
+      "api_key": "sk-or-...",
+      "default_model": "x-ai/grok-3-mini"
+    }
+  }
+}
+```
 
 ## Project Structure
 
 ```
 the-pipeline/
-├── docker-compose.yml       # Docker services orchestration
-├── .env                     # Environment variables (create from .env.example)
-├── nginx.conf              # Nginx configuration
+├── docker-compose.yml          # Docker services orchestration
+├── nginx.conf                  # Nginx configuration
 ├── backend/
-│   ├── Dockerfile          # Backend container definition
-│   ├── requirements.txt    # Python dependencies
+│   ├── Dockerfile
+│   ├── requirements.txt
 │   └── app/
-│       ├── main.py         # FastAPI application
-│       ├── config.py       # Configuration management
-│       ├── models.py       # Pydantic models
-│       ├── database.py     # Database connection
-│       ├── rag_engine.py   # LlamaIndex RAG logic
+│       ├── main.py             # FastAPI application
+│       ├── config.py           # Configuration management
+│       ├── models.py           # Pydantic models
+│       ├── database.py         # Database connection
+│       ├── auth.py             # JWT authentication
+│       ├── rag_engine.py       # LlamaIndex RAG logic
 │       └── api/
-│           ├── upload.py   # Upload endpoints
-│           └── query.py    # Query endpoints
+│           ├── auth.py         # Login endpoints
+│           ├── upload.py       # Document upload
+│           ├── query.py        # RAG query
+│           └── llm_compare.py  # LLM comparison
+├── services/
+│   ├── anthropic-service/      # Claude API wrapper
+│   │   ├── Dockerfile
+│   │   ├── main.py
+│   │   └── requirements.txt
+│   └── openrouter-service/     # Grok/OpenRouter API wrapper
+│       ├── Dockerfile
+│       ├── main.py
+│       └── requirements.txt
 ├── frontend/
-│   ├── index.html         # Main HTML page
+│   ├── login.html              # Login page
+│   ├── landing.html            # Tool selection
+│   ├── resume.html             # RAG tool (document Q&A)
+│   ├── llm-compare.html        # LLM comparison tool
 │   ├── css/
-│   │   └── styles.css     # Styling
+│   │   └── styles.css
 │   └── js/
-│       └── app.js         # Frontend logic
-└── db/
-    └── init.sql           # PostgreSQL initialization
+│       ├── login.js
+│       ├── landing.js
+│       ├── app.js              # RAG tool logic
+│       └── llm-compare.js
+├── db/
+│   └── init.sql                # PostgreSQL initialization
+└── tests/
+    ├── test_login_api.py       # Auth tests
+    └── test_services_integration.py  # LLM service tests
 ```
 
 ## Development
@@ -207,18 +292,27 @@ docker-compose logs -f
 
 # Specific service
 docker-compose logs -f backend
-docker-compose logs -f postgres
-docker-compose logs -f frontend
+docker-compose logs -f anthropic-service
+docker-compose logs -f openrouter-service
 ```
 
 ### Restart services
 
 ```bash
-# Restart all
 docker-compose restart
-
-# Restart specific service
 docker-compose restart backend
+```
+
+### Rebuild after code changes
+
+```bash
+docker-compose up --build -d
+```
+
+### Run tests
+
+```bash
+docker-compose run --rm -v $(pwd)/tests:/app/tests backend pytest /app/tests/ -v
 ```
 
 ### Stop the application
@@ -235,34 +329,30 @@ docker-compose down -v
 
 ## Troubleshooting
 
-### Backend won't start
+### Services won't start
 
-- Check that `ANTHROPIC_API_KEY` is set in `.env`
-- View logs: `docker-compose logs backend`
-- Ensure PostgreSQL is healthy: `docker-compose ps`
+- Check API keys are configured in `/data/config.json`
+- View logs: `docker-compose logs <service-name>`
+- Ensure all health checks pass: `docker-compose ps`
 
-### Database connection errors
+### Authentication errors
 
-- Wait for PostgreSQL to fully start (health check)
-- Check DATABASE_URL in `.env`
-- View logs: `docker-compose logs postgres`
+- Verify `/data/auth` file exists with valid credentials
+- Check JWT_SECRET_KEY matches across restarts
+- Token expires after 24 hours - login again
 
-### Upload fails
+### LLM Comparison shows errors
 
-- Check file size (max 10MB)
-- Verify file type is supported (.pdf, .txt, .docx, .md)
-- Check backend logs for errors
+- Check both API keys are valid
+- View service logs: `docker-compose logs anthropic-service openrouter-service`
+- Verify services are healthy: `curl http://localhost:8000/api/health`
 
-### Query returns no results
+### RAG returns no results
 
 - Ensure documents are uploaded successfully
 - Check that chunks were created (see upload response)
-- Try increasing `TOP_K_RETRIEVAL` in `.env`
+- Try increasing `TOP_K_RETRIEVAL`
 
 ## License
 
 MIT
-
-## Contributing
-
-Contributions are welcome! Please open an issue or submit a pull request.

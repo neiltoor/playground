@@ -68,3 +68,33 @@ class LoginResponse(BaseModel):
 class UserInfo(BaseModel):
     """Model for user information."""
     username: str
+
+
+# LLM Comparison Models
+class LLMUsage(BaseModel):
+    """Token usage information from LLM response."""
+    input_tokens: int
+    output_tokens: int
+    total_tokens: Optional[int] = None
+
+
+class LLMResult(BaseModel):
+    """Single LLM response result."""
+    content: str
+    model: str
+    usage: LLMUsage
+    error: Optional[str] = None
+
+
+class LLMCompareRequest(BaseModel):
+    """Request model for LLM comparison."""
+    prompt: str = Field(..., min_length=1, description="The prompt to send to both LLMs")
+    anthropic_model: Optional[str] = Field("claude-3-haiku-20240307", description="Anthropic model to use")
+    openrouter_model: Optional[str] = Field("x-ai/grok-3-mini", description="OpenRouter model to use")
+
+
+class LLMCompareResponse(BaseModel):
+    """Response model for LLM comparison."""
+    prompt: str
+    anthropic: LLMResult
+    openrouter: LLMResult

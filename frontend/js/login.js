@@ -14,7 +14,7 @@ const loginBtnSpinner = document.getElementById('loginBtnSpinner');
 
 // Check if already logged in
 if (localStorage.getItem(AUTH_TOKEN_KEY)) {
-    window.location.href = '/';
+    window.location.href = '/landing.html';
 }
 
 // Handle login form submission
@@ -52,8 +52,8 @@ loginForm.addEventListener('submit', async (e) => {
         localStorage.setItem(AUTH_TOKEN_KEY, data.access_token);
         localStorage.setItem(USERNAME_KEY, data.username);
 
-        // Redirect to main app
-        window.location.href = '/';
+        // Redirect to landing page
+        window.location.href = '/landing.html';
 
     } catch (error) {
         // Show error message

@@ -1214,3 +1214,345 @@ header h1::before {
         display: none;
     }
 }
+
+/* ============================================
+   LANDING PAGE - TOOL SELECTION
+   ============================================ */
+
+.landing-container {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xl);
+}
+
+.landing-header {
+    text-align: center;
+    margin-bottom: var(--spacing-xl);
+    position: relative;
+}
+
+.landing-header h1 {
+    font-size: 2.5rem;
+    font-weight: 700;
+    background: var(--primary-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: var(--spacing-sm);
+}
+
+.landing-header .subtitle {
+    color: var(--gray-light);
+    font-size: 1.1rem;
+}
+
+.landing-header .btn-logout {
+    position: absolute;
+    top: 0;
+    right: -100px;
+}
+
+.tool-cards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-xl);
+    max-width: 900px;
+    width: 100%;
+}
+
+.tool-card {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-xl);
+    text-decoration: none;
+    color: var(--light);
+    transition: var(--transition-base);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+}
+
+.tool-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--primary-gradient);
+    opacity: 0;
+    transition: var(--transition-base);
+}
+
+.tool-card:hover {
+    transform: translateY(-8px);
+    box-shadow: var(--shadow-xl), var(--shadow-glow);
+    border-color: rgba(102, 126, 234, 0.3);
+}
+
+.tool-card:hover::before {
+    opacity: 1;
+}
+
+.tool-icon {
+    width: 80px;
+    height: 80px;
+    background: var(--primary-gradient);
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: var(--spacing-md);
+    box-shadow: var(--shadow-md);
+}
+
+.tool-icon svg {
+    color: white;
+}
+
+.tool-card h2 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: var(--spacing-sm);
+}
+
+.tool-card p {
+    color: var(--gray-light);
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: var(--spacing-md);
+}
+
+.tool-badge {
+    background: rgba(102, 126, 234, 0.2);
+    color: var(--primary-light);
+    padding: 0.4rem 1rem;
+    border-radius: var(--radius-full);
+    font-size: 0.8rem;
+    font-weight: 500;
+}
+
+/* ============================================
+   LLM COMPARISON PAGE
+   ============================================ */
+
+.llm-compare-container {
+    max-width: 1400px;
+}
+
+.llm-compare-container header {
+    margin-bottom: var(--spacing-lg);
+}
+
+.header-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.header-left h1 {
+    font-size: 1.8rem;
+    margin: 0;
+}
+
+.back-link {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--gray-light);
+    text-decoration: none;
+    font-size: 0.9rem;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    transition: var(--transition-fast);
+}
+
+.back-link:hover {
+    color: var(--light);
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.glass-card {
+    background: rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-lg);
+}
+
+.llm-input-section {
+    margin-bottom: var(--spacing-lg);
+}
+
+.llm-input-section textarea {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+    color: var(--light);
+    font-size: 1rem;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 100px;
+    transition: var(--transition-fast);
+}
+
+.llm-input-section textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+}
+
+.llm-input-section textarea::placeholder {
+    color: var(--gray);
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: var(--spacing-md);
+}
+
+.llm-results {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--spacing-lg);
+}
+
+.llm-result-card {
+    display: flex;
+    flex-direction: column;
+    min-height: 400px;
+}
+
+.result-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: var(--spacing-md);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: var(--spacing-md);
+}
+
+.result-header h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+}
+
+.model-badge {
+    background: rgba(102, 126, 234, 0.2);
+    color: var(--primary-light);
+    padding: 0.3rem 0.8rem;
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+.result-content {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: var(--spacing-sm);
+}
+
+.result-content .placeholder {
+    color: var(--gray);
+    font-style: italic;
+}
+
+.result-content .loading-text {
+    color: var(--primary-light);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.result-content .error-text {
+    color: var(--danger);
+}
+
+.result-content .response-text {
+    line-height: 1.7;
+}
+
+.result-content .response-text p {
+    margin-bottom: var(--spacing-sm);
+}
+
+.result-footer {
+    padding-top: var(--spacing-md);
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    margin-top: var(--spacing-md);
+}
+
+.token-info {
+    font-size: 0.85rem;
+    color: var(--gray-light);
+}
+
+/* Anthropic card accent */
+.anthropic-card {
+    border-top: 3px solid #d97706;
+}
+
+/* OpenRouter card accent */
+.openrouter-card {
+    border-top: 3px solid #10b981;
+}
+
+/* ============================================
+   LLM COMPARISON - RESPONSIVE
+   ============================================ */
+
+@media (max-width: 1024px) {
+    .tool-cards {
+        grid-template-columns: 1fr;
+        max-width: 450px;
+    }
+
+    .landing-header .btn-logout {
+        position: static;
+        margin-top: var(--spacing-md);
+    }
+
+    .llm-results {
+        grid-template-columns: 1fr;
+    }
+
+    .llm-result-card {
+        min-height: 300px;
+    }
+}
+
+@media (max-width: 768px) {
+    .header-content {
+        flex-direction: column;
+        gap: var(--spacing-md);
+        text-align: center;
+    }
+
+    .header-left {
+        flex-direction: column;
+    }
+
+    .landing-header h1 {
+        font-size: 2rem;
+    }
+}
