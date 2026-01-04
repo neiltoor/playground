@@ -72,6 +72,42 @@ Monitor user activity and system usage.
 └──────────────────┘  └──────────────────┘  └──────────────────┘
 ```
 
+### Database Schema
+
+```
+PostgreSQL + pgvector extension
+
+┌─────────────────────────────────────────────────────────────────┐
+│                     document_embeddings                          │
+│                   (Created by LlamaIndex)                        │
+├─────────────────────────────────────────────────────────────────┤
+│  id              UUID          PRIMARY KEY                       │
+│  text            TEXT          Document chunk content            │
+│  metadata_       JSONB         {document_id, filename, user_id}  │
+│  node_id         VARCHAR       LlamaIndex node identifier        │
+│  embedding       VECTOR(384)   all-MiniLM-L6-v2 embeddings       │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                        activity_log                              │
+│                    (User Activity Tracking)                      │
+├─────────────────────────────────────────────────────────────────┤
+│  id              SERIAL        PRIMARY KEY                       │
+│  username        VARCHAR(255)  User who performed action         │
+│  activity_type   VARCHAR(50)   login | api_call                  │
+│  resource_path   VARCHAR(500)  API endpoint accessed             │
+│  ip_address      VARCHAR(45)   Client IP (IPv4/IPv6)             │
+│  user_agent      TEXT          Browser/client info               │
+│  timestamp       TIMESTAMP     When action occurred              │
+│  details         TEXT          JSON with extra info              │
+└─────────────────────────────────────────────────────────────────┘
+
+Indexes:
+  - idx_activity_log_username
+  - idx_activity_log_timestamp
+  - idx_activity_log_activity_type
+```
+
 ## Prerequisites
 
 - Docker and Docker Compose
