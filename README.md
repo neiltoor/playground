@@ -1,21 +1,29 @@
-# RAG Pipeline & LLM Comparison Tool
+# Neil's Playground
 
-A microservices-based application featuring document Q&A using RAG (Retrieval-Augmented Generation) and side-by-side LLM comparison between Claude and Grok.
+A microservices-based AI playground with two main features: a RAG pipeline for comparing candidates and an inference interface for comparing LLM responses.
+
+**Source Code:** [github.com/neiltoor/playground](https://github.com/neiltoor/playground)
 
 ## Features
 
-### Resume Comparison Tool (RAG)
+### 1. RAG Pipeline - Candidate Comparison
+Upload resumes and documents to ask AI-powered questions about candidates.
+
 - Upload documents (PDF, TXT, DOCX, MD)
 - Automatic document chunking and embedding
 - Vector similarity search with pgvector
 - Q&A powered by Claude or Grok
 
-### LLM Comparison Tool
+### 2. Inference Interface - LLM Comparison
+Compare responses from different LLMs side-by-side in real-time.
+
 - Side-by-side comparison of Claude (Anthropic) and Grok (xAI via OpenRouter)
 - Send the same prompt to both LLMs simultaneously
 - Compare responses and token usage
+- See how different models interpret the same query
 
 ### General
+- SSL/TLS support (HTTPS)
 - JWT authentication
 - Multiple LLM provider support (Anthropic + OpenRouter)
 - Premium glassmorphism UI
@@ -35,7 +43,7 @@ A microservices-based application featuring document Q&A using RAG (Retrieval-Au
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Frontend (Nginx)                            │
-│                         Port 8080                                │
+│                    Port 8443 (HTTPS)                             │
 │  login.html → landing.html → resume.html OR llm-compare.html    │
 └─────────────────────────────────────────────────────────────────┘
                                │
@@ -107,16 +115,16 @@ This will start:
 
 ### 4. Access the application
 
-- **Web UI**: http://localhost:8080
+- **Web UI**: https://localhost:8443
 - **API Docs**: http://localhost:8000/docs
 - **Health Check**: http://localhost:8000/api/health
 
 ## User Flow
 
-1. **Login** at http://localhost:8080
+1. **Login** at https://localhost:8443
 2. **Choose a tool** from the landing page:
-   - **Resume Comparison**: Upload documents and ask questions (RAG)
-   - **LLM Comparison**: Compare Claude vs Grok responses side-by-side
+   - **RAG Pipeline**: Upload resumes/documents and ask AI questions about candidates
+   - **Inference Interface**: Compare Claude vs Grok responses side-by-side
 
 ## API Endpoints
 
@@ -237,49 +245,67 @@ API keys can also be set in `/data/config.json`:
 
 ```
 the-pipeline/
-├── docker-compose.yml          # Docker services orchestration
-├── nginx.conf                  # Nginx configuration
-├── backend/
+├── docker-compose.yml              # Docker services orchestration
+├── nginx.conf                      # Nginx configuration (SSL/HTTPS)
+├── README.md
+├── CLAUDE.md                       # AI assistant instructions
+│
+├── backend/                        # Main API server
 │   ├── Dockerfile
 │   ├── requirements.txt
 │   └── app/
-│       ├── main.py             # FastAPI application
-│       ├── config.py           # Configuration management
-│       ├── models.py           # Pydantic models
-│       ├── database.py         # Database connection
-│       ├── auth.py             # JWT authentication
-│       ├── rag_engine.py       # LlamaIndex RAG logic
-│       └── api/
-│           ├── auth.py         # Login endpoints
-│           ├── upload.py       # Document upload
-│           ├── query.py        # RAG query
-│           └── llm_compare.py  # LLM comparison
-├── services/
-│   ├── anthropic-service/      # Claude API wrapper
+│       ├── main.py                 # FastAPI application
+│       ├── config.py               # Configuration management
+│       ├── models.py               # Pydantic models
+│       ├── database.py             # Database connection
+│       ├── auth.py                 # JWT authentication
+│       ├── rag_engine.py           # LlamaIndex RAG logic
+│       ├── api/
+│       │   ├── auth.py             # Login endpoints
+│       │   ├── upload.py           # Document upload (RAG)
+│       │   ├── query.py            # RAG query
+│       │   └── llm_compare.py      # Inference interface endpoint
+│       └── tests/                  # Unit tests
+│
+├── services/                       # LLM Microservices
+│   ├── CLAUDE.md
+│   ├── anthropic-service/          # Claude API wrapper (port 8001)
 │   │   ├── Dockerfile
 │   │   ├── main.py
-│   │   └── requirements.txt
-│   └── openrouter-service/     # Grok/OpenRouter API wrapper
+│   │   ├── requirements.txt
+│   │   └── test_anthropic_service.py
+│   └── openrouter-service/         # Grok/xAI API wrapper (port 8002)
 │       ├── Dockerfile
 │       ├── main.py
-│       └── requirements.txt
-├── frontend/
-│   ├── login.html              # Login page
-│   ├── landing.html            # Tool selection
-│   ├── resume.html             # RAG tool (document Q&A)
-│   ├── llm-compare.html        # LLM comparison tool
+│       ├── requirements.txt
+│       └── test_openrouter_service.py
+│
+├── frontend/                       # Static web UI
+│   ├── login.html                  # Login page
+│   ├── landing.html                # Tool selection
+│   ├── resume.html                 # RAG Pipeline interface
+│   ├── llm-compare.html            # Inference Interface
 │   ├── css/
-│   │   └── styles.css
+│   │   └── styles.css              # Glassmorphism styling
 │   └── js/
 │       ├── login.js
 │       ├── landing.js
-│       ├── app.js              # RAG tool logic
-│       └── llm-compare.js
+│       ├── app.js                  # RAG tool logic
+│       └── llm-compare.js          # Inference interface logic
+│
+├── ssl/                            # SSL certificates
+│   ├── .gitignore                  # Excludes private keys
+│   └── *.csr                       # Certificate signing requests
+│
 ├── db/
-│   └── init.sql                # PostgreSQL initialization
-└── tests/
-    ├── test_login_api.py       # Auth tests
-    └── test_services_integration.py  # LLM service tests
+│   └── init.sql                    # PostgreSQL + pgvector init
+│
+├── tests/                          # Integration tests
+│   ├── test_login_api.py
+│   └── test_services_integration.py
+│
+└── docs/
+    └── dependency-management.md
 ```
 
 ## Development
