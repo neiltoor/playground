@@ -89,7 +89,7 @@ async def call_llm_service(
 @router.post("/llm-compare", response_model=LLMCompareResponse)
 async def compare_llms(
     request: LLMCompareRequest,
-    username: str = Depends(get_current_user)
+    user: dict = Depends(get_current_user)
 ):
     """
     Compare responses from Anthropic and OpenRouter LLMs.
@@ -99,7 +99,7 @@ async def compare_llms(
 
     Args:
         request: LLMCompareRequest with prompt and optional model selections
-        username: Current authenticated user
+        user: Current authenticated user dict
 
     Returns:
         LLMCompareResponse with results from both providers

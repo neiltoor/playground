@@ -4,5 +4,21 @@ CREATE EXTENSION IF NOT EXISTS vector;
 -- Create schema for LlamaIndex tables (optional, LlamaIndex will create its own tables)
 CREATE SCHEMA IF NOT EXISTS public;
 
+-- Activity log table for user monitoring
+CREATE TABLE IF NOT EXISTS activity_log (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(255) NOT NULL,
+    activity_type VARCHAR(50) NOT NULL,
+    resource_path VARCHAR(500),
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    details TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_log_username ON activity_log(username);
+CREATE INDEX IF NOT EXISTS idx_activity_log_timestamp ON activity_log(timestamp);
+CREATE INDEX IF NOT EXISTS idx_activity_log_activity_type ON activity_log(activity_type);
+
 -- Grant permissions
 GRANT ALL ON SCHEMA public TO raguser;

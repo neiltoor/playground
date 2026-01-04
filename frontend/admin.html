@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Activity Dashboard - Admin</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/admin.css">
+</head>
+<body>
+    <div class="container admin-container">
+        <header class="admin-header">
+            <div class="header-left">
+                <a href="/landing.html" class="back-link">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                    Back
+                </a>
+                <h1>Activity Dashboard</h1>
+                <span class="admin-badge">Admin</span>
+            </div>
+            <div class="header-right">
+                <span>Logged in as: <strong id="usernameDisplay">Admin</strong></span>
+                <button class="btn btn-secondary" onclick="logout()">Logout</button>
+            </div>
+        </header>
+
+        <!-- Stats Cards -->
+        <div class="stats-grid">
+            <div class="stat-card glass-card">
+                <div class="stat-icon login-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                        <polyline points="10 17 15 12 10 7"></polyline>
+                        <line x1="15" y1="12" x2="3" y2="12"></line>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-label">Login Events</span>
+                    <span class="stat-value" id="loginCount">-</span>
+                </div>
+            </div>
+
+            <div class="stat-card glass-card">
+                <div class="stat-icon api-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-label">API Calls</span>
+                    <span class="stat-value" id="apiCallCount">-</span>
+                </div>
+            </div>
+
+            <div class="stat-card glass-card">
+                <div class="stat-icon user-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-label">Active Users (24h)</span>
+                    <span class="stat-value" id="activeUserCount">-</span>
+                </div>
+            </div>
+
+            <div class="stat-card glass-card">
+                <div class="stat-icon total-icon">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                </div>
+                <div class="stat-content">
+                    <span class="stat-label">Total (24h)</span>
+                    <span class="stat-value" id="totalCount">-</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters-section glass-card">
+            <div class="filter-group">
+                <label for="filterUsername">Username</label>
+                <input type="text" id="filterUsername" placeholder="Filter by username...">
+            </div>
+            <div class="filter-group">
+                <label for="filterType">Activity Type</label>
+                <select id="filterType">
+                    <option value="">All Types</option>
+                    <option value="login">Login</option>
+                    <option value="api_call">API Call</option>
+                </select>
+            </div>
+            <button class="btn btn-primary" onclick="applyFilters()">Apply</button>
+            <button class="btn btn-secondary" onclick="clearFilters()">Clear</button>
+            <button class="btn btn-secondary" onclick="refreshData()">Refresh</button>
+        </div>
+
+        <!-- Activity Log Table -->
+        <div class="activity-table-container glass-card">
+            <h2>Recent Activity</h2>
+            <div class="table-wrapper">
+                <table class="activity-table" id="activityTable">
+                    <thead>
+                        <tr>
+                            <th>Timestamp</th>
+                            <th>Username</th>
+                            <th>Type</th>
+                            <th>Resource</th>
+                            <th>IP Address</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="activityTableBody">
+                        <tr>
+                            <td colspan="6" class="loading">Loading activity logs...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination">
+                <button class="btn btn-secondary" id="prevBtn" onclick="prevPage()" disabled>Previous</button>
+                <span class="page-info">Page <span id="currentPage">1</span> of <span id="totalPages">1</span></span>
+                <button class="btn btn-secondary" id="nextBtn" onclick="nextPage()">Next</button>
+            </div>
+        </div>
+
+        <!-- Error Message -->
+        <div id="errorMessage" class="error-message" style="display: none;"></div>
+    </div>
+
+    <script src="js/admin.js"></script>
+</body>
+</html>

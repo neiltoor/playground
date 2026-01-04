@@ -11,7 +11,7 @@ router = APIRouter()
 @router.post("/query", response_model=QueryResponse)
 async def query_documents(
     request: QueryRequest,
-    username: str = Depends(get_current_user)
+    user: dict = Depends(get_current_user)
 ):
     """
     Query the RAG system with user-specific filtering.
@@ -20,11 +20,12 @@ async def query_documents(
 
     Args:
         request: Query request with question and optional top_k
-        username: Current authenticated user
+        user: Current authenticated user dict
 
     Returns:
         Query response with answer and sources
     """
+    username = user["username"]
     try:
         # Get RAG engine
         rag_engine = get_rag_engine()

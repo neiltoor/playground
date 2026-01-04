@@ -8,7 +8,8 @@ from app.config import settings
 from app.database import check_database_connection
 from app.rag_engine import get_rag_engine
 from app.models import HealthResponse
-from app.api import upload, query, auth, llm_compare
+from app.api import upload, query, auth, llm_compare, activity
+from app.middleware.activity_logger import ActivityLoggerMiddleware
 
 
 app = FastAPI(
@@ -25,6 +26,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Activity logging middleware
+app.add_middleware(ActivityLoggerMiddleware)
 
 
 @app.on_event("startup")
@@ -87,6 +91,7 @@ app.include_router(auth.router, prefix="/api", tags=["auth"])
 app.include_router(upload.router, prefix="/api", tags=["upload"])
 app.include_router(query.router, prefix="/api", tags=["query"])
 app.include_router(llm_compare.router, prefix="/api", tags=["llm-compare"])
+app.include_router(activity.router, prefix="/api", tags=["activity"])
 
 
 @app.get("/")

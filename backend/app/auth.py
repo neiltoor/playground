@@ -18,14 +18,15 @@ AUTH_FILE_PATH = "/data/auth"
 security = HTTPBearer()
 
 
-def read_auth_file() -> Dict[str, str]:
+def read_auth_file() -> Dict[str, Dict[str, str]]:
     """
     Read and parse the /data/auth file.
 
-    Format: username:password (one per line)
+    Format: username:password:role (one per line)
+    Role is optional, defaults to 'user' if not specified.
 
     Returns:
-        Dictionary mapping username -> password
+        Dictionary mapping username -> {"password": str, "role": str}
 
     Raises:
         FileNotFoundError: If auth file doesn't exist
@@ -47,21 +48,25 @@ def read_auth_file() -> Dict[str, str]:
                 if not line or line.startswith('#'):
                     continue
 
-                # Parse username:password format
+                # Parse username:password:role format
                 if ':' not in line:
                     raise ValueError(f"Invalid format on line {line_num}: missing ':' separator")
 
-                parts = line.split(':', 1)
-                if len(parts) != 2:
+                parts = line.split(':')
+                if len(parts) < 2:
                     raise ValueError(f"Invalid format on line {line_num}")
 
                 username = parts[0].strip()
                 password = parts[1].strip()
+                role = parts[2].strip() if len(parts) > 2 else "user"
 
                 if not username or not password:
                     raise ValueError(f"Empty username or password on line {line_num}")
 
-                users[username] = password
+                if role not in ["admin", "user"]:
+                    raise ValueError(f"Invalid role '{role}' on line {line_num}. Must be 'admin' or 'user'")
+
+                users[username] = {"password": password, "role": role}
 
         return users
 
@@ -71,7 +76,7 @@ def read_auth_file() -> Dict[str, str]:
         raise ValueError(f"Error reading auth file: {str(e)}")
 
 
-def authenticate_user(username: str, password: str) -> bool:
+def authenticate_user(username: str, password: str) -> Optional[Dict[str, str]]:
     """
     Authenticate user against /data/auth file.
 
@@ -80,24 +85,28 @@ def authenticate_user(username: str, password: str) -> bool:
         password: Password to verify (plaintext)
 
     Returns:
-        True if credentials are valid, False otherwise
+        User info dict {"username": str, "role": str} if valid, None otherwise
     """
     try:
         users = read_auth_file()
 
         if username not in users:
-            return False
+            return None
 
+        user_data = users[username]
         # Plaintext password comparison (as requested)
-        return users[username] == password
+        if user_data["password"] == password:
+            return {"username": username, "role": user_data["role"]}
+
+        return None
 
     except FileNotFoundError:
         # If auth file doesn't exist, authentication fails
-        return False
+        return None
     except Exception as e:
         # Log error but don't expose details to user
         print(f"Authentication error: {e}")
-        return False
+        return None
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
@@ -124,7 +133,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     return encoded_jwt
 
 
-def verify_token(token: str) -> str:
+def verify_token(token: str) -> Dict[str, str]:
     """
     Verify and decode JWT token.
 
@@ -132,7 +141,7 @@ def verify_token(token: str) -> str:
         token: JWT token string to verify
 
     Returns:
-        Username from token payload
+        Dict with username and role from token payload
 
     Raises:
         HTTPException: If token is invalid, expired, or malformed
@@ -146,11 +155,12 @@ def verify_token(token: str) -> str:
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
+        role: str = payload.get("role", "user")
 
         if username is None:
             raise credentials_exception
 
-        return username
+        return {"username": username, "role": role}
 
     except JWTError as e:
         if "expired" in str(e).lower():
@@ -162,21 +172,41 @@ def verify_token(token: str) -> str:
         raise credentials_exception
 
 
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> str:
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)) -> Dict[str, str]:
     """
     FastAPI dependency to get current authenticated user from JWT token.
 
-    Extracts Bearer token from Authorization header, validates it, and returns username.
+    Extracts Bearer token from Authorization header, validates it, and returns user info.
 
     Args:
         credentials: HTTP Bearer credentials from request header
 
     Returns:
-        Username of authenticated user
+        Dict with username and role of authenticated user
 
     Raises:
         HTTPException: If token is missing, invalid, or expired
     """
     token = credentials.credentials
-    username = verify_token(token)
-    return username
+    return verify_token(token)
+
+
+def require_admin(user: Dict[str, str] = Depends(get_current_user)) -> Dict[str, str]:
+    """
+    FastAPI dependency requiring admin role.
+
+    Args:
+        user: Current user from get_current_user dependency
+
+    Returns:
+        User dict if admin
+
+    Raises:
+        HTTPException: If user is not an admin
+    """
+    if user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    return user

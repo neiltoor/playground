@@ -63,11 +63,41 @@ class LoginResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     username: str
+    role: str = "user"
 
 
 class UserInfo(BaseModel):
     """Model for user information."""
     username: str
+    role: str = "user"
+
+
+# Activity Log Models
+class ActivityLogEntry(BaseModel):
+    """Model for activity log entry."""
+    id: int
+    username: str
+    activity_type: str
+    resource_path: Optional[str] = None
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    timestamp: datetime
+    details: Optional[str] = None
+
+
+class ActivityLogsResponse(BaseModel):
+    """Response model for activity logs."""
+    logs: List[ActivityLogEntry]
+    total: int
+    limit: int
+    offset: int
+
+
+class ActivityStatsResponse(BaseModel):
+    """Response model for activity statistics."""
+    by_type: dict
+    last_24_hours: int
+    unique_users_today: int
 
 
 # LLM Comparison Models

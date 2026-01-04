@@ -22,9 +22,18 @@ Compare responses from different LLMs side-by-side in real-time.
 - Compare responses and token usage
 - See how different models interpret the same query
 
+### 3. Activity Dashboard (Admin Only)
+Monitor user activity and system usage.
+
+- Login event tracking (success/failure)
+- API call logging with timestamps and IP addresses
+- Filter by username or activity type
+- Real-time statistics (active users, total events)
+- Role-based access control (admin only)
+
 ### General
 - SSL/TLS support (HTTPS)
-- JWT authentication
+- JWT authentication with role-based access control
 - Multiple LLM provider support (Anthropic + OpenRouter)
 - Premium glassmorphism UI
 - Everything runs locally with Docker Compose
@@ -51,7 +60,8 @@ Compare responses from different LLMs side-by-side in real-time.
 ┌─────────────────────────────────────────────────────────────────┐
 │                    Backend (FastAPI)                             │
 │                        Port 8000                                 │
-│  /api/login, /api/upload, /api/query, /api/llm-compare          │
+│  /api/login, /api/upload, /api/query, /api/llm-compare,         │
+│  /api/activity (admin)                                           │
 └─────────────────────────────────────────────────────────────────┘
           │                    │                    │
           ▼                    ▼                    ▼
@@ -94,11 +104,16 @@ Create `/data/config.json` with your API keys:
 }
 ```
 
-Create `/data/auth` with login credentials (username:password format):
+Create `/data/auth` with login credentials (username:password:role format):
 
 ```
-admin:your_password_here
+admin:your_password_here:admin
+user1:password123:user
 ```
+
+Roles:
+- `admin` - Full access including Activity Dashboard
+- `user` - Standard access (default if role omitted)
 
 ### 3. Start the application
 
@@ -125,6 +140,7 @@ This will start:
 2. **Choose a tool** from the landing page:
    - **RAG Pipeline**: Upload resumes/documents and ask AI questions about candidates
    - **Inference Interface**: Compare Claude vs Grok responses side-by-side
+   - **Activity Dashboard** (admin only): Monitor login events and API usage
 
 ## API Endpoints
 
@@ -135,14 +151,14 @@ POST /api/login
 Content-Type: application/json
 
 Body: { "username": "...", "password": "..." }
-Response: { "access_token": "...", "token_type": "bearer", "username": "..." }
+Response: { "access_token": "...", "token_type": "bearer", "username": "...", "role": "admin|user" }
 ```
 
 ```
 GET /api/me
 Authorization: Bearer <token>
 
-Response: { "username": "..." }
+Response: { "username": "...", "role": "..." }
 ```
 
 ### LLM Comparison
@@ -194,6 +210,28 @@ Content-Type: application/json
 
 Body: { "query": "What is...?", "top_k": 5, "provider": "anthropic" }
 Response: { "answer": "...", "sources": [...], "query": "..." }
+```
+
+### Activity Monitoring (Admin Only)
+
+```
+GET /api/activity
+Authorization: Bearer <admin_token>
+
+Query params: limit, offset, username, activity_type
+Response: {
+  "logs": [{ "id": 1, "username": "...", "activity_type": "login|api_call", "resource_path": "...", "ip_address": "...", "timestamp": "...", "details": "..." }],
+  "total": 100,
+  "limit": 50,
+  "offset": 0
+}
+```
+
+```
+GET /api/activity/stats
+Authorization: Bearer <admin_token>
+
+Response: { "by_type": {"login": 10, "api_call": 50}, "last_24_hours": 60, "unique_users_today": 3 }
 ```
 
 ### Health
@@ -258,13 +296,18 @@ the-pipeline/
 │       ├── config.py               # Configuration management
 │       ├── models.py               # Pydantic models
 │       ├── database.py             # Database connection
-│       ├── auth.py                 # JWT authentication
+│       ├── auth.py                 # JWT authentication + roles
 │       ├── rag_engine.py           # LlamaIndex RAG logic
 │       ├── api/
 │       │   ├── auth.py             # Login endpoints
 │       │   ├── upload.py           # Document upload (RAG)
 │       │   ├── query.py            # RAG query
-│       │   └── llm_compare.py      # Inference interface endpoint
+│       │   ├── llm_compare.py      # Inference interface endpoint
+│       │   └── activity.py         # Activity monitoring (admin)
+│       ├── services/
+│       │   └── activity_service.py # Activity logging service
+│       ├── middleware/
+│       │   └── activity_logger.py  # Request logging middleware
 │       └── tests/                  # Unit tests
 │
 ├── services/                       # LLM Microservices
@@ -285,13 +328,16 @@ the-pipeline/
 │   ├── landing.html                # Tool selection
 │   ├── resume.html                 # RAG Pipeline interface
 │   ├── llm-compare.html            # Inference Interface
+│   ├── admin.html                  # Activity Dashboard (admin)
 │   ├── css/
-│   │   └── styles.css              # Glassmorphism styling
+│   │   ├── styles.css              # Glassmorphism styling
+│   │   └── admin.css               # Admin dashboard styles
 │   └── js/
 │       ├── login.js
 │       ├── landing.js
 │       ├── app.js                  # RAG tool logic
-│       └── llm-compare.js          # Inference interface logic
+│       ├── llm-compare.js          # Inference interface logic
+│       └── admin.js                # Activity dashboard logic
 │
 ├── ssl/                            # SSL certificates
 │   ├── .gitignore                  # Excludes private keys

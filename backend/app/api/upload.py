@@ -20,7 +20,7 @@ router = APIRouter()
 @router.post("/upload", response_model=UploadResponse)
 async def upload_document(
     file: UploadFile = File(...),
-    username: str = Depends(get_current_user)
+    user: dict = Depends(get_current_user)
 ):
     """
     Upload and ingest a document into the RAG system.
@@ -30,11 +30,12 @@ async def upload_document(
 
     Args:
         file: The document file to upload
-        username: Current authenticated user
+        user: Current authenticated user dict
 
     Returns:
         Upload response with document info
     """
+    username = user["username"]
     try:
         # Validate file extension
         file_ext = Path(file.filename).suffix.lower()
@@ -112,7 +113,7 @@ async def upload_document(
 
 
 @router.get("/documents", response_model=List[DocumentInfo])
-async def list_documents(username: str = Depends(get_current_user)):
+async def list_documents(user: dict = Depends(get_current_user)):
     """
     List user's documents + shared documents.
 
@@ -120,11 +121,12 @@ async def list_documents(username: str = Depends(get_current_user)):
     Returns documents uploaded by current user plus shared docs (like neiltoor.pdf).
 
     Args:
-        username: Current authenticated user
+        user: Current authenticated user dict
 
     Returns:
         List of document information
     """
+    username = user["username"]
     try:
         upload_dir = Path(settings.UPLOAD_DIR)
 
