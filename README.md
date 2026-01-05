@@ -1,3 +1,20 @@
+
+Welcome to Neil’s Playground!
+
+This is where I practice my vibe-coding skills in public. There’s nothing particularly useful here (yet), but for a long time the models weren’t very capable and that’s changed. Maybe this will too. For now, it’s simply a place to learn and experiment.
+
+About the setup:
+
+~99% of the application code is written by Claude
+The backend is self-hosted on a 2012 Intel NUC running ESXi
+One Ubuntu VM runs the application
+A separate Ubuntu VM runs Kubernetes
+
+
+https://neiltoor.com/
+
+#-------
+
 # Neil's Playground
 
 A microservices-based AI playground with two main features: a RAG pipeline for comparing candidates and an inference interface for comparing LLM responses.
