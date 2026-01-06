@@ -15,38 +15,58 @@ import httpx
 
 ANTHROPIC_SERVICE_URL = os.getenv("ANTHROPIC_SERVICE_URL", "http://anthropic-service:8001")
 KUBECTL_SERVICE_URL = os.getenv("KUBECTL_SERVICE_URL", "http://kubectl-service:8003")
-MAX_AGENT_ITERATIONS = 10
-COMMAND_TIMEOUT = 30
+MAX_AGENT_ITERATIONS = 15
+COMMAND_TIMEOUT = 120  # Increased for helm operations
 
-SYSTEM_PROMPT = """You are a Kubernetes assistant with access to kubectl commands. Help users understand and manage their Kubernetes cluster.
+SYSTEM_PROMPT = """You are a Kubernetes assistant with access to kubectl and helm commands. Help users understand and manage their Kubernetes cluster.
 
-When the user asks about their cluster, you can execute kubectl commands to get information.
+You have THREE actions available:
 
-IMPORTANT: You must respond with valid JSON in one of these formats:
+1. **Execute commands** (kubectl or helm):
+{"action": "execute", "commands": ["kubectl get pods -n default", "helm list -A"]}
 
-1. To execute kubectl commands:
-{"action": "execute", "commands": ["get pods -n default", "get services"]}
+2. **Fetch a URL** (to read documentation, GitHub repos, helm chart info):
+{"action": "fetch", "url": "https://example.com/path"}
 
-2. To provide a final response to the user:
-{"action": "respond", "message": "Your helpful response here explaining what you found"}
+3. **Respond to the user** (final answer):
+{"action": "respond", "message": "Your helpful response here"}
 
-Rules:
-- The commands should NOT include "kubectl" prefix - just the arguments (e.g., "get pods" not "kubectl get pods")
-- You can run multiple commands in one request if needed
-- After seeing command results, interpret them in plain language for the user
-- If a command fails, explain why and suggest alternatives
-- Always be helpful and explain what the commands show
-- For complex questions, gather information first with commands, then respond
+IMPORTANT RULES:
+- Commands MUST include the tool prefix: "kubectl ..." or "helm ..."
+- You can run multiple commands in one request
+- Use fetch to read GitHub repos, documentation, or chart values before installing
+- After command results or fetch results, interpret them for the user
+- For helm installs, ALWAYS check if the repo is added first, add it if needed
 
-Examples of valid commands:
-- "get pods -n default"
-- "get pods --all-namespaces"
-- "describe pod my-pod -n default"
-- "get deployments -o wide"
-- "logs my-pod -n default --tail=50"
-- "get nodes"
-- "top pods -n default"
-- "get events -n default --sort-by='.lastTimestamp'"
+KUBECTL EXAMPLES:
+- "kubectl get pods -n default"
+- "kubectl get pods -A"
+- "kubectl describe pod my-pod -n default"
+- "kubectl get deployments -o wide"
+- "kubectl logs my-pod -n default --tail=50"
+- "kubectl get nodes"
+- "kubectl get events --sort-by='.lastTimestamp'"
+
+HELM EXAMPLES:
+- "helm list -A" (list all releases)
+- "helm repo list" (list added repos)
+- "helm repo add prometheus-community https://prometheus-community.github.io/helm-charts"
+- "helm repo update"
+- "helm search repo prometheus"
+- "helm install my-release repo/chart -n namespace --create-namespace"
+- "helm upgrade my-release repo/chart -n namespace"
+- "helm uninstall my-release -n namespace"
+- "helm show values repo/chart" (see default values)
+
+WORKFLOW FOR HELM INSTALLS:
+1. If user provides a GitHub URL, fetch it to understand the chart
+2. Check if repo is added: "helm repo list"
+3. Add repo if needed: "helm repo add name url"
+4. Update repos: "helm repo update"
+5. Search for chart: "helm search repo chartname"
+6. Install: "helm install releasename repo/chart -n namespace --create-namespace"
+
+Always explain what you're doing and interpret results in plain language.
 """
 
 
@@ -91,11 +111,11 @@ async def call_anthropic(messages: List[Dict[str, str]], system: str) -> str:
         return data.get("content", "")
 
 
-async def execute_kubectl(command: str) -> Dict[str, Any]:
-    """Execute a kubectl command via kubectl-service."""
+async def execute_command(command: str) -> Dict[str, Any]:
+    """Execute a kubectl or helm command via kubectl-service."""
     async with httpx.AsyncClient(timeout=COMMAND_TIMEOUT + 10) as client:
         response = await client.post(
-            f"{KUBECTL_SERVICE_URL}/execute",
+            f"{KUBECTL_SERVICE_URL}/run",
             json={
                 "command": command,
                 "timeout": COMMAND_TIMEOUT
@@ -103,6 +123,43 @@ async def execute_kubectl(command: str) -> Dict[str, Any]:
         )
         response.raise_for_status()
         return response.json()
+
+
+async def fetch_url(url: str) -> str:
+    """Fetch content from a URL (for GitHub repos, docs, etc.)."""
+    async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+        try:
+            # For GitHub repos, try to get the README
+            if "github.com" in url and "/tree/" in url:
+                # Convert tree URL to raw README URL
+                # https://github.com/owner/repo/tree/main/path -> raw README
+                parts = url.replace("https://github.com/", "").split("/tree/")
+                if len(parts) == 2:
+                    repo = parts[0]
+                    branch_path = parts[1].split("/", 1)
+                    branch = branch_path[0]
+                    path = branch_path[1] if len(branch_path) > 1 else ""
+                    raw_url = f"https://raw.githubusercontent.com/{repo}/{branch}/{path}/README.md"
+                    response = await client.get(raw_url)
+                    if response.status_code == 200:
+                        content = response.text
+                        # Truncate if too long
+                        if len(content) > 8000:
+                            content = content[:8000] + "\n\n[Content truncated...]"
+                        return f"README.md from {url}:\n\n{content}"
+
+            # For regular URLs, just fetch the content
+            response = await client.get(url)
+            response.raise_for_status()
+
+            content = response.text
+            # Truncate if too long
+            if len(content) > 8000:
+                content = content[:8000] + "\n\n[Content truncated...]"
+            return content
+
+        except Exception as e:
+            return f"Error fetching URL: {str(e)}"
 
 
 def parse_agent_response(response: str) -> Dict[str, Any]:
@@ -175,11 +232,11 @@ async def run_agent(user_message: str, conversation_id: Optional[str] = None) ->
             results = []
             for cmd in commands:
                 try:
-                    result = await execute_kubectl(cmd)
-                    commands_this_turn.append(f"kubectl {cmd}")
-                    conv.commands_executed.append(f"kubectl {cmd}")
+                    result = await execute_command(cmd)
+                    commands_this_turn.append(cmd)
+                    conv.commands_executed.append(cmd)
 
-                    result_text = f"Command: kubectl {cmd}\n"
+                    result_text = f"Command: {cmd}\n"
                     if result.get("return_code") == 0:
                         result_text += f"Output:\n{result.get('stdout', '(no output)')}"
                     else:
@@ -188,12 +245,36 @@ async def run_agent(user_message: str, conversation_id: Optional[str] = None) ->
                     results.append(result_text)
 
                 except httpx.HTTPError as e:
-                    results.append(f"Command: kubectl {cmd}\nError: Failed to execute - {str(e)}")
+                    results.append(f"Command: {cmd}\nError: Failed to execute - {str(e)}")
 
             # Add command results to conversation
             results_message = "Command execution results:\n\n" + "\n\n---\n\n".join(results)
             conv.messages.append({"role": "assistant", "content": claude_response})
             conv.messages.append({"role": "user", "content": results_message})
+
+            # Continue loop to let Claude interpret results
+
+        elif action == "fetch":
+            url = parsed.get("url", "")
+            if not url:
+                conv.messages.append({"role": "assistant", "content": claude_response})
+                return {
+                    "conversation_id": conv.conversation_id,
+                    "response": "No URL provided to fetch.",
+                    "commands_executed": commands_this_turn,
+                    "error": True
+                }
+
+            # Fetch the URL
+            try:
+                fetch_result = await fetch_url(url)
+                fetch_message = f"Fetched content from {url}:\n\n{fetch_result}"
+            except Exception as e:
+                fetch_message = f"Error fetching {url}: {str(e)}"
+
+            # Add fetch results to conversation
+            conv.messages.append({"role": "assistant", "content": claude_response})
+            conv.messages.append({"role": "user", "content": fetch_message})
 
             # Continue loop to let Claude interpret results
 
