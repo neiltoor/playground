@@ -4,6 +4,15 @@
 @services/CLAUDE.md
 @DEPLOYMENT.md
 
+# Documentation Guidelines
+
+After writing new code, check if README.md needs updating:
+1. New features or tools added
+2. Architecture changes (new services, ports, dependencies)
+3. API endpoint changes
+4. Configuration or environment variable changes
+5. Project structure changes
+
 # Build Guidelines
 
 When upgrading package to resolve conflict and dependecies alwasy go up in version.

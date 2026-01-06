@@ -1,23 +1,19 @@
+# Neil's Playground
 
-Welcome to Neil’s Playground!
+An experiment in building software with AI. Nearly all the code here is written by Claude — I provide direction, it writes the implementation.
 
-This is where I practice my vibe-coding skills in public. There’s nothing particularly useful here (yet), but for a long time the models weren’t very capable and that’s changed. Maybe this will too. For now, it’s simply a place to learn and experiment.
+**Setup:**
+- Self-hosted on a 2012 Intel NUC (ESXi)
+- Ubuntu VM for the application
+- Separate Ubuntu VM for Kubernetes
 
-About the setup:
-
-~99% of the application code is written by Claude
-The backend is self-hosted on a 2012 Intel NUC running ESXi
-One Ubuntu VM runs the application
-A separate Ubuntu VM runs Kubernetes
-
-
-https://neiltoor.com/
+[neiltoor.com](https://neiltoor.com/)
 
 #-------
 
 # Neil's Playground
 
-A microservices-based AI playground with two main features: a RAG pipeline for comparing candidates and an inference interface for comparing LLM responses.
+A microservices-based AI playground with three main features: a RAG pipeline for comparing candidates, an inference interface for comparing LLM responses, and a natural language Kubernetes agent.
 
 **Source Code:** [github.com/neiltoor/playground](https://github.com/neiltoor/playground)
 
@@ -48,6 +44,15 @@ Monitor user activity and system usage.
 - Real-time statistics (active users, total events)
 - Role-based access control (admin only)
 
+### 4. Kubectl Agent - Natural Language Kubernetes
+Manage Kubernetes clusters using natural language commands.
+
+- Chat-based interface powered by Claude
+- Execute kubectl and helm commands via natural language
+- Streaming responses with real-time progress
+- Multi-turn conversations with context retention
+- Fetch documentation and GitHub repos for helm installs
+
 ### General
 - SSL/TLS support (HTTPS)
 - JWT authentication with role-based access control
@@ -70,23 +75,31 @@ Monitor user activity and system usage.
 ┌─────────────────────────────────────────────────────────────────┐
 │                      Frontend (Nginx)                            │
 │                    Port 8443 (HTTPS)                             │
-│  login.html → landing.html → resume.html OR llm-compare.html    │
+│  login.html → landing.html → resume.html | llm-compare.html     │
+│                              kubectl.html                        │
 └─────────────────────────────────────────────────────────────────┘
                                │
-                               ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    Backend (FastAPI)                             │
-│                        Port 8000                                 │
-│  /api/login, /api/upload, /api/query, /api/llm-compare,         │
-│  /api/activity (admin)                                           │
-└─────────────────────────────────────────────────────────────────┘
-          │                    │                    │
-          ▼                    ▼                    ▼
-┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│ Anthropic Service│  │ OpenRouter Svc   │  │   PostgreSQL     │
-│    Port 8001     │  │    Port 8002     │  │   (pgvector)     │
-│  Claude API      │  │  Grok/xAI API    │  │                  │
-└──────────────────┘  └──────────────────┘  └──────────────────┘
+          ┌────────────────────┴────────────────────┐
+          ▼                                         ▼
+┌─────────────────────────────────┐  ┌─────────────────────────────┐
+│        Backend (FastAPI)        │  │     Kubectl Agent           │
+│          Port 8000              │  │       Port 8004             │
+│  /api/login, /api/upload,       │  │  Natural language → kubectl │
+│  /api/query, /api/llm-compare   │  │  Streaming chat interface   │
+└─────────────────────────────────┘  └─────────────────────────────┘
+          │                    │              │           │
+          ▼                    ▼              ▼           ▼
+┌──────────────────┐  ┌──────────────┐  ┌──────────────────────────┐
+│ Anthropic Service│  │ OpenRouter   │  │    Kubectl Service       │
+│    Port 8001     │  │  Port 8002   │  │      Port 8003           │
+│  Claude API      │  │  Grok/xAI    │  │  kubectl/helm executor   │
+└──────────────────┘  └──────────────┘  └──────────────────────────┘
+          │
+          ▼
+┌──────────────────┐
+│   PostgreSQL     │
+│   (pgvector)     │
+└──────────────────┘
 ```
 
 ### Database Schema
@@ -363,24 +376,32 @@ the-pipeline/
 │       │   └── activity_logger.py  # Request logging middleware
 │       └── tests/                  # Unit tests
 │
-├── services/                       # LLM Microservices
+├── services/                       # Microservices
 │   ├── CLAUDE.md
 │   ├── anthropic-service/          # Claude API wrapper (port 8001)
 │   │   ├── Dockerfile
 │   │   ├── main.py
 │   │   ├── requirements.txt
 │   │   └── test_anthropic_service.py
-│   └── openrouter-service/         # Grok/xAI API wrapper (port 8002)
+│   ├── openrouter-service/         # Grok/xAI API wrapper (port 8002)
+│   │   ├── Dockerfile
+│   │   ├── main.py
+│   │   ├── requirements.txt
+│   │   └── test_openrouter_service.py
+│   ├── kubectl-service/            # kubectl/helm executor (port 8003)
+│   │   ├── Dockerfile
+│   │   └── main.py
+│   └── kubectl-agent/              # Natural language K8s agent (port 8004)
 │       ├── Dockerfile
-│       ├── main.py
-│       ├── requirements.txt
-│       └── test_openrouter_service.py
+│       ├── main.py                 # FastAPI endpoints
+│       └── agent.py                # Agent orchestration logic
 │
 ├── frontend/                       # Static web UI
 │   ├── login.html                  # Login page
 │   ├── landing.html                # Tool selection
 │   ├── resume.html                 # RAG Pipeline interface
 │   ├── llm-compare.html            # Inference Interface
+│   ├── kubectl.html                # Kubectl Agent interface
 │   ├── admin.html                  # Activity Dashboard (admin)
 │   ├── css/
 │   │   ├── styles.css              # Glassmorphism styling
@@ -390,6 +411,7 @@ the-pipeline/
 │       ├── landing.js
 │       ├── app.js                  # RAG tool logic
 │       ├── llm-compare.js          # Inference interface logic
+│       ├── kubectl.js              # Kubectl agent logic
 │       └── admin.js                # Activity dashboard logic
 │
 ├── ssl/                            # SSL certificates
