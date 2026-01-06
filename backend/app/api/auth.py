@@ -3,7 +3,11 @@ from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 
 from app.models import LoginRequest, LoginResponse, UserInfo
-from app.auth import authenticate_user, create_access_token, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
+from app.auth import (
+    authenticate_user, create_access_token, get_current_user,
+    ACCESS_TOKEN_EXPIRE_MINUTES, is_account_locked, record_failed_login,
+    reset_failed_logins, MAX_FAILED_ATTEMPTS
+)
 from app.services.activity_service import ActivityService
 
 
@@ -36,11 +40,8 @@ async def login(request: LoginRequest, req: Request):
     user_agent = req.headers.get("user-agent")
 
     try:
-        # Authenticate against /data/auth file
-        user_info = authenticate_user(request.username, request.password)
-
-        if not user_info:
-            # Log failed login attempt
+        # Check if account is locked
+        if is_account_locked(request.username):
             ActivityService.log_login(
                 username=request.username,
                 ip_address=ip_address,
@@ -48,10 +49,38 @@ async def login(request: LoginRequest, req: Request):
                 success=False
             )
             raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Account locked due to {MAX_FAILED_ATTEMPTS} failed login attempts. Contact administrator.",
+            )
+
+        # Authenticate against /data/auth file
+        user_info = authenticate_user(request.username, request.password)
+
+        if not user_info:
+            # Record failed attempt and log
+            failed_count = record_failed_login(request.username)
+            ActivityService.log_login(
+                username=request.username,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                success=False
+            )
+
+            remaining = MAX_FAILED_ATTEMPTS - failed_count
+            if remaining <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=f"Account locked due to {MAX_FAILED_ATTEMPTS} failed login attempts. Contact administrator.",
+                )
+
+            raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid username or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+
+        # Reset failed login counter on success
+        reset_failed_logins(request.username)
 
         # Create JWT token with role
         token_data = {"sub": user_info["username"], "role": user_info["role"]}

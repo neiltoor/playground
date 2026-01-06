@@ -1,4 +1,5 @@
 import os
+import json
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -11,6 +12,32 @@ from app.models import HealthResponse
 from app.api import upload, query, auth, llm_compare, activity
 from app.middleware.activity_logger import ActivityLoggerMiddleware
 
+CONFIG_FILE_PATH = "/data/config.json"
+
+
+def _load_cors_origins() -> list:
+    """Load CORS origins from config file, env var, or use defaults."""
+    # 1. Try config file first
+    try:
+        with open(CONFIG_FILE_PATH, 'r') as f:
+            config = json.load(f)
+            if config.get("cors_origins"):
+                print(f"Loaded CORS origins from /data/config.json: {config['cors_origins']}")
+                return config["cors_origins"]
+    except (FileNotFoundError, json.JSONDecodeError, IOError):
+        pass
+
+    # 2. Try environment variable
+    cors_env = os.getenv("CORS_ORIGINS", "")
+    if cors_env:
+        origins = [origin.strip() for origin in cors_env.split(",") if origin.strip()]
+        print(f"Loaded CORS origins from CORS_ORIGINS env var: {origins}")
+        return origins
+
+    # 3. Default to localhost
+    print("WARNING: CORS origins not configured. Defaulting to localhost only.")
+    return ["https://localhost:8443", "https://127.0.0.1:8443"]
+
 
 app = FastAPI(
     title="RAG Pipeline API",
@@ -18,13 +45,14 @@ app = FastAPI(
     version="1.0.0"
 )
 
-# CORS middleware for local development
+CORS_ORIGINS = _load_cors_origins()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Activity logging middleware

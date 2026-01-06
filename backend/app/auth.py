@@ -1,4 +1,6 @@
 import os
+import secrets
+import json
 from datetime import datetime, timedelta
 from typing import Optional, Dict
 from pathlib import Path
@@ -8,11 +10,39 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jose import JWTError, jwt
 
 
-# JWT Configuration
-SECRET_KEY = os.getenv("JWT_SECRET_KEY", "dev-secret-key-change-in-production")
+# JWT Configuration - load from config file, env var, or generate
+CONFIG_FILE_PATH = "/data/config.json"
+
+def _load_jwt_secret() -> str:
+    """Load JWT secret from config file, env var, or generate one."""
+    # 1. Try config file first
+    try:
+        with open(CONFIG_FILE_PATH, 'r') as f:
+            config = json.load(f)
+            if config.get("jwt_secret_key"):
+                print("Loaded JWT secret from /data/config.json")
+                return config["jwt_secret_key"]
+    except (FileNotFoundError, json.JSONDecodeError, IOError):
+        pass
+
+    # 2. Try environment variable
+    env_secret = os.getenv("JWT_SECRET_KEY")
+    if env_secret and env_secret != "dev-secret-key-change-in-production":
+        print("Loaded JWT secret from JWT_SECRET_KEY environment variable")
+        return env_secret
+
+    # 3. Generate random key (not recommended for production)
+    print("WARNING: JWT secret not found in /data/config.json or JWT_SECRET_KEY env var.")
+    print("WARNING: Generated random key - tokens will invalidate on restart!")
+    return secrets.token_hex(32)
+
+SECRET_KEY = _load_jwt_secret()
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "1440"))  # 24 hours
 AUTH_FILE_PATH = "/data/auth"
+LOCKOUT_FILE_PATH = "/data/.lockouts.json"
+MAX_FAILED_ATTEMPTS = 20
 
 # Security scheme
 security = HTTPBearer()
@@ -74,6 +104,56 @@ def read_auth_file() -> Dict[str, Dict[str, str]]:
         if isinstance(e, (FileNotFoundError, ValueError)):
             raise
         raise ValueError(f"Error reading auth file: {str(e)}")
+
+
+def _read_lockouts() -> Dict[str, Dict]:
+    """Read lockout data from file."""
+    lockout_file = Path(LOCKOUT_FILE_PATH)
+    if not lockout_file.exists():
+        return {}
+    try:
+        with open(lockout_file, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return {}
+
+
+def _write_lockouts(lockouts: Dict[str, Dict]) -> None:
+    """Write lockout data to file."""
+    lockout_file = Path(LOCKOUT_FILE_PATH)
+    try:
+        with open(lockout_file, 'w') as f:
+            json.dump(lockouts, f)
+    except IOError as e:
+        print(f"Warning: Could not write lockout file: {e}")
+
+
+def is_account_locked(username: str) -> bool:
+    """Check if an account is locked due to too many failed attempts."""
+    lockouts = _read_lockouts()
+    user_data = lockouts.get(username)
+    if not user_data:
+        return False
+    return user_data.get("failed_attempts", 0) >= MAX_FAILED_ATTEMPTS
+
+
+def record_failed_login(username: str) -> int:
+    """Record a failed login attempt. Returns current failed count."""
+    lockouts = _read_lockouts()
+    if username not in lockouts:
+        lockouts[username] = {"failed_attempts": 0, "first_failure": datetime.utcnow().isoformat()}
+    lockouts[username]["failed_attempts"] += 1
+    lockouts[username]["last_failure"] = datetime.utcnow().isoformat()
+    _write_lockouts(lockouts)
+    return lockouts[username]["failed_attempts"]
+
+
+def reset_failed_logins(username: str) -> None:
+    """Reset failed login count after successful login."""
+    lockouts = _read_lockouts()
+    if username in lockouts:
+        del lockouts[username]
+        _write_lockouts(lockouts)
 
 
 def authenticate_user(username: str, password: str) -> Optional[Dict[str, str]]:
