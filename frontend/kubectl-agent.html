@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kubectl Agent</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <script src="js/theme.js"></script>
+    <style>
+        .kubectl-container {
+            max-width: 900px;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 250px);
+            min-height: 400px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: var(--spacing-lg);
+            display: flex;
+            flex-direction: column;
+            gap: var(--spacing-md);
+        }
+
+        .message {
+            max-width: 85%;
+            padding: var(--spacing-md);
+            border-radius: var(--radius-lg);
+            line-height: 1.5;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .message.system {
+            align-self: center;
+            background: var(--warning-light);
+            color: var(--warning);
+            font-size: 0.875rem;
+            max-width: 90%;
+        }
+
+        .message.error {
+            background: var(--danger-light);
+            color: var(--danger);
+        }
+
+        .message pre {
+            background: var(--bg-secondary);
+            padding: var(--spacing-sm);
+            border-radius: var(--radius-md);
+            overflow-x: auto;
+            margin: var(--spacing-sm) 0;
+            font-size: 0.8125rem;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .message.assistant pre {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-primary);
+        }
+
+        .commands-executed {
+            margin-top: var(--spacing-sm);
+            padding-top: var(--spacing-sm);
+            border-top: 1px solid var(--border-secondary);
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        .commands-executed code {
+            display: block;
+            background: var(--bg-secondary);
+            padding: 4px 8px;
+            border-radius: var(--radius-sm);
+            margin-top: 4px;
+            font-family: 'Monaco', 'Consolas', monospace;
+        }
+
+        .chat-input-area {
+            padding: var(--spacing-md);
+            border-top: 1px solid var(--border-primary);
+            background: var(--bg-secondary);
+        }
+
+        .chat-input-form {
+            display: flex;
+            gap: var(--spacing-sm);
+        }
+
+        .chat-input-form textarea {
+            flex: 1;
+            resize: none;
+            border: 1px solid var(--border-primary);
+            border-radius: var(--radius-lg);
+            padding: var(--spacing-md);
+            font-family: inherit;
+            font-size: 1rem;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 50px;
+            max-height: 150px;
+        }
+
+        .chat-input-form textarea:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px var(--accent-light);
+        }
+
+        .chat-input-form button {
+            align-self: flex-end;
+            padding: var(--spacing-md) var(--spacing-lg);
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: var(--spacing-md);
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-lg);
+            width: fit-content;
+        }
+
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: bounce 1.4s infinite ease-in-out;
+        }
+
+        .typing-indicator span:nth-child(1) { animation-delay: -0.32s; }
+        .typing-indicator span:nth-child(2) { animation-delay: -0.16s; }
+
+        @keyframes bounce {
+            0%, 80%, 100% { transform: scale(0); }
+            40% { transform: scale(1); }
+        }
+
+        .welcome-message {
+            text-align: center;
+            color: var(--text-muted);
+            padding: var(--spacing-xl);
+        }
+
+        .welcome-message h2 {
+            color: var(--text-primary);
+            margin-bottom: var(--spacing-md);
+        }
+
+        .welcome-message p {
+            margin-bottom: var(--spacing-sm);
+        }
+
+        .example-queries {
+            display: flex;
+            flex-wrap: wrap;
+            gap: var(--spacing-sm);
+            justify-content: center;
+            margin-top: var(--spacing-lg);
+        }
+
+        .example-query {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-primary);
+            padding: var(--spacing-sm) var(--spacing-md);
+            border-radius: var(--radius-full);
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all var(--transition-fast);
+        }
+
+        .example-query:hover {
+            background: var(--accent-light);
+            border-color: var(--accent-primary);
+            color: var(--accent-primary);
+        }
+
+        .new-chat-btn {
+            margin-left: var(--spacing-md);
+            padding: var(--spacing-sm) var(--spacing-md);
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container kubectl-container">
+        <header>
+            <div class="header-content">
+                <div class="header-left">
+                    <a href="/landing.html" class="back-link">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="19" y1="12" x2="5" y2="12"></line>
+                            <polyline points="12 19 5 12 12 5"></polyline>
+                        </svg>
+                        Back
+                    </a>
+                    <h1>Kubectl Agent</h1>
+                    <button class="btn btn-secondary new-chat-btn" onclick="startNewChat()">New Chat</button>
+                </div>
+                <div class="header-right">
+                    <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                        <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="5"></circle>
+                            <line x1="12" y1="1" x2="12" y2="3"></line>
+                            <line x1="12" y1="21" x2="12" y2="23"></line>
+                            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                            <line x1="1" y1="12" x2="3" y2="12"></line>
+                            <line x1="21" y1="12" x2="23" y2="12"></line>
+                            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                        </svg>
+                        <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                        </svg>
+                    </button>
+                    <span>Logged in as: <strong id="usernameDisplay">User</strong></span>
+                    <button class="btn btn-secondary" onclick="logout()">Logout</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <div class="welcome-message" id="welcomeMessage">
+                    <h2>Welcome to Kubectl Agent</h2>
+                    <p>Ask me anything about your Kubernetes cluster.</p>
+                    <p>I can run kubectl commands to get information and help you understand your cluster.</p>
+                    <div class="example-queries">
+                        <span class="example-query" onclick="useExample(this)">Show all pods</span>
+                        <span class="example-query" onclick="useExample(this)">What nodes are in the cluster?</span>
+                        <span class="example-query" onclick="useExample(this)">Are there any failing pods?</span>
+                        <span class="example-query" onclick="useExample(this)">Show recent events</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-input-area">
+                <form class="chat-input-form" id="chatForm">
+                    <textarea
+                        id="messageInput"
+                        placeholder="Ask about your Kubernetes cluster..."
+                        rows="1"
+                        required
+                    ></textarea>
+                    <button type="submit" class="btn btn-primary" id="sendBtn">
+                        <span id="sendBtnText">Send</span>
+                        <span id="sendBtnSpinner" class="spinner" style="display: none;"></span>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/kubectl-agent.js"></script>
+</body>
+</html>

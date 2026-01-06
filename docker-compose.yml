@@ -55,6 +55,38 @@ services:
       timeout: 5s
       retries: 3
 
+  # Kubectl Service (Command Executor)
+  kubectl-service:
+    build: ./services/kubectl-service
+    volumes:
+      - /data/kubeconfig:/root/.kube/config:ro
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Kubectl Agent Service (AI Orchestrator)
+  kubectl-agent:
+    build: ./services/kubectl-agent
+    environment:
+      - ANTHROPIC_SERVICE_URL=http://anthropic-service:8001
+      - KUBECTL_SERVICE_URL=http://kubectl-service:8003
+    depends_on:
+      anthropic-service:
+        condition: service_healthy
+      kubectl-service:
+        condition: service_healthy
+    networks:
+      - rag-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8004/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   # Main Backend (RAG Orchestrator)
   backend:
     build: ./backend

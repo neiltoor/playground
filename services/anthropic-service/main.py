@@ -3,7 +3,7 @@ Anthropic LLM Service - Microservice wrapper for Anthropic API calls
 """
 import os
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from anthropic import Anthropic
@@ -36,6 +36,7 @@ class ChatRequest(BaseModel):
     model: str = "claude-3-5-sonnet-20241022"
     temperature: float = 0.1
     max_tokens: int = 4096
+    system: Optional[str] = None
 
 
 class ChatResponse(BaseModel):
@@ -78,13 +79,20 @@ async def chat_completion(request: ChatRequest):
             for msg in request.messages
         ]
 
+        # Build API call parameters
+        api_params = {
+            "model": request.model,
+            "max_tokens": request.max_tokens,
+            "temperature": request.temperature,
+            "messages": messages
+        }
+
+        # Add system prompt if provided
+        if request.system:
+            api_params["system"] = request.system
+
         # Call Anthropic API
-        response = client.messages.create(
-            model=request.model,
-            max_tokens=request.max_tokens,
-            temperature=request.temperature,
-            messages=messages
-        )
+        response = client.messages.create(**api_params)
 
         # Extract response content
         content = response.content[0].text if response.content else ""
