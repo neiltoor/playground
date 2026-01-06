@@ -20,6 +20,8 @@ COMMAND_TIMEOUT = 120  # Increased for helm operations
 
 SYSTEM_PROMPT = """You are a Kubernetes assistant with access to kubectl and helm commands. Help users understand and manage their Kubernetes cluster.
 
+CRITICAL: You MUST respond with ONLY a valid JSON object. No other text before or after the JSON. No explanations outside the JSON.
+
 You have THREE actions available:
 
 1. **Execute commands** (kubectl or helm):
@@ -164,24 +166,50 @@ async def fetch_url(url: str) -> str:
 
 def parse_agent_response(response: str) -> Dict[str, Any]:
     """Parse Claude's JSON response."""
-    # Try to extract JSON from the response
     response = response.strip()
 
     # Handle case where response is wrapped in markdown code blocks
     if "```json" in response:
         match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
         if match:
-            response = match.group(1)
+            response = match.group(1).strip()
     elif "```" in response:
         match = re.search(r'```\s*(.*?)\s*```', response, re.DOTALL)
         if match:
-            response = match.group(1)
+            response = match.group(1).strip()
 
+    # First try to parse the whole response as JSON
     try:
         return json.loads(response)
     except json.JSONDecodeError:
-        # If JSON parsing fails, treat it as a direct response
-        return {"action": "respond", "message": response}
+        pass
+
+    # Try to find JSON object embedded in the text
+    # Look for {"action": ...} pattern
+    json_match = re.search(r'\{["\']action["\']\s*:\s*["\'](?:execute|fetch|respond)["\'][^}]*\}', response, re.DOTALL)
+    if json_match:
+        try:
+            # Get the match and try to find the complete JSON object
+            start = json_match.start()
+            # Find matching closing brace
+            brace_count = 0
+            end = start
+            for i, char in enumerate(response[start:]):
+                if char == '{':
+                    brace_count += 1
+                elif char == '}':
+                    brace_count -= 1
+                    if brace_count == 0:
+                        end = start + i + 1
+                        break
+
+            json_str = response[start:end]
+            return json.loads(json_str)
+        except (json.JSONDecodeError, IndexError):
+            pass
+
+    # If all parsing fails, treat it as a direct response
+    return {"action": "respond", "message": response}
 
 
 async def run_agent(user_message: str, conversation_id: Optional[str] = None) -> Dict[str, Any]:
@@ -302,6 +330,183 @@ async def run_agent(user_message: str, conversation_id: Optional[str] = None) ->
     return {
         "conversation_id": conv.conversation_id,
         "response": "I've reached the maximum number of steps for this request. Please try a simpler question.",
+        "commands_executed": commands_this_turn,
+        "error": True
+    }
+
+
+async def run_agent_streaming(user_message: str, conversation_id: Optional[str] = None):
+    """
+    Run the agent loop with streaming events.
+
+    Yields events as the agent works:
+    - {"type": "thinking", "message": "..."}
+    - {"type": "executing", "command": "..."}
+    - {"type": "result", "command": "...", "output": "...", "success": bool}
+    - {"type": "fetching", "url": "..."}
+    - {"type": "response", "message": "...", "conversation_id": "...", "commands_executed": [...]}
+    - {"type": "error", "message": "..."}
+    """
+    conv = get_or_create_conversation(conversation_id)
+
+    # Add user message to history
+    conv.messages.append({"role": "user", "content": user_message})
+
+    iteration = 0
+    commands_this_turn = []
+
+    yield {"type": "thinking", "message": "Analyzing your request..."}
+
+    while iteration < MAX_AGENT_ITERATIONS:
+        iteration += 1
+
+        # Call Claude
+        try:
+            yield {"type": "thinking", "message": "Consulting Claude for next action..."}
+            claude_response = await call_anthropic(conv.messages, SYSTEM_PROMPT)
+        except httpx.HTTPError as e:
+            yield {
+                "type": "error",
+                "message": f"Error communicating with Claude: {str(e)}"
+            }
+            yield {
+                "type": "response",
+                "conversation_id": conv.conversation_id,
+                "message": f"Error communicating with Claude: {str(e)}",
+                "commands_executed": commands_this_turn,
+                "error": True
+            }
+            return
+
+        # Parse the response
+        parsed = parse_agent_response(claude_response)
+        action = parsed.get("action", "respond")
+
+        if action == "execute":
+            commands = parsed.get("commands", [])
+            if not commands:
+                conv.messages.append({"role": "assistant", "content": claude_response})
+                yield {
+                    "type": "response",
+                    "conversation_id": conv.conversation_id,
+                    "message": parsed.get("message", claude_response),
+                    "commands_executed": commands_this_turn,
+                    "error": False
+                }
+                return
+
+            # Execute each command and collect results
+            results = []
+            for cmd in commands:
+                yield {"type": "executing", "command": cmd}
+
+                try:
+                    result = await execute_command(cmd)
+                    commands_this_turn.append(cmd)
+                    conv.commands_executed.append(cmd)
+
+                    success = result.get("return_code") == 0
+                    output = result.get('stdout', '(no output)') if success else (
+                        result.get("stderr") or result.get("stdout") or "(no output)"
+                    )
+
+                    yield {
+                        "type": "result",
+                        "command": cmd,
+                        "output": output[:1000] + ("..." if len(output) > 1000 else ""),
+                        "success": success
+                    }
+
+                    result_text = f"Command: {cmd}\n"
+                    if success:
+                        result_text += f"Output:\n{result.get('stdout', '(no output)')}"
+                    else:
+                        result_text += f"Error (exit code {result.get('return_code')}):\n{output}"
+                    results.append(result_text)
+
+                except httpx.HTTPError as e:
+                    yield {
+                        "type": "result",
+                        "command": cmd,
+                        "output": f"Failed to execute: {str(e)}",
+                        "success": False
+                    }
+                    results.append(f"Command: {cmd}\nError: Failed to execute - {str(e)}")
+
+            # Add command results to conversation
+            results_message = "Command execution results:\n\n" + "\n\n---\n\n".join(results)
+            conv.messages.append({"role": "assistant", "content": claude_response})
+            conv.messages.append({"role": "user", "content": results_message})
+
+            yield {"type": "thinking", "message": "Analyzing command results..."}
+
+        elif action == "fetch":
+            url = parsed.get("url", "")
+            if not url:
+                conv.messages.append({"role": "assistant", "content": claude_response})
+                yield {
+                    "type": "response",
+                    "conversation_id": conv.conversation_id,
+                    "message": "No URL provided to fetch.",
+                    "commands_executed": commands_this_turn,
+                    "error": True
+                }
+                return
+
+            yield {"type": "fetching", "url": url}
+
+            try:
+                fetch_result = await fetch_url(url)
+                fetch_message = f"Fetched content from {url}:\n\n{fetch_result}"
+                yield {
+                    "type": "result",
+                    "command": f"fetch {url}",
+                    "output": fetch_result[:500] + ("..." if len(fetch_result) > 500 else ""),
+                    "success": True
+                }
+            except Exception as e:
+                fetch_message = f"Error fetching {url}: {str(e)}"
+                yield {
+                    "type": "result",
+                    "command": f"fetch {url}",
+                    "output": str(e),
+                    "success": False
+                }
+
+            conv.messages.append({"role": "assistant", "content": claude_response})
+            conv.messages.append({"role": "user", "content": fetch_message})
+
+            yield {"type": "thinking", "message": "Processing fetched content..."}
+
+        elif action == "respond":
+            message = parsed.get("message", claude_response)
+            conv.messages.append({"role": "assistant", "content": message})
+
+            yield {
+                "type": "response",
+                "conversation_id": conv.conversation_id,
+                "message": message,
+                "commands_executed": commands_this_turn,
+                "error": False
+            }
+            return
+
+        else:
+            conv.messages.append({"role": "assistant", "content": claude_response})
+            yield {
+                "type": "response",
+                "conversation_id": conv.conversation_id,
+                "message": claude_response,
+                "commands_executed": commands_this_turn,
+                "error": False
+            }
+            return
+
+    # Max iterations reached
+    yield {
+        "type": "response",
+        "conversation_id": conv.conversation_id,
+        "message": "I've reached the maximum number of steps for this request. Please try a simpler question.",
         "commands_executed": commands_this_turn,
         "error": True
     }

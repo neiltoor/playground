@@ -1,5 +1,6 @@
 /**
  * Kubectl Agent - Chat interface for Kubernetes cluster management
+ * With streaming support for real-time progress updates
  */
 
 // State
@@ -48,13 +49,13 @@ chatForm.addEventListener('submit', async (e) => {
     const message = messageInput.value.trim();
     if (!message || isLoading) return;
 
-    await sendMessage(message);
+    await sendMessageStreaming(message);
 });
 
 /**
- * Send a message to the kubectl agent
+ * Send a message using streaming endpoint
  */
-async function sendMessage(message) {
+async function sendMessageStreaming(message) {
     isLoading = true;
     setLoading(true);
 
@@ -70,11 +71,12 @@ async function sendMessage(message) {
     messageInput.value = '';
     autoResizeTextarea();
 
-    // Show typing indicator
-    const typingIndicator = addTypingIndicator();
+    // Create a progress container for streaming updates
+    const progressContainer = addProgressContainer();
+    let commandsExecuted = [];
 
     try {
-        const response = await fetch('/api/kubectl-agent/chat', {
+        const response = await fetch('/api/kubectl-agent/chat/stream', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -85,33 +87,159 @@ async function sendMessage(message) {
             })
         });
 
-        // Remove typing indicator
-        typingIndicator.remove();
-
         if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.detail || 'Failed to get response');
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
 
-        const data = await response.json();
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
 
-        // Update conversation ID
-        conversationId = data.conversation_id;
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-        // Add assistant response
-        addMessage('assistant', data.response, data.commands_executed);
+            buffer += decoder.decode(value, { stream: true });
 
-        if (data.error) {
-            addMessage('system', 'Note: The agent encountered an issue processing your request.');
+            // Process complete SSE messages
+            const lines = buffer.split('\n');
+            buffer = lines.pop(); // Keep incomplete line in buffer
+
+            for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                    try {
+                        const event = JSON.parse(line.slice(6));
+                        handleStreamEvent(event, progressContainer, commandsExecuted);
+
+                        // If this is the final response, update conversation ID
+                        if (event.type === 'response') {
+                            conversationId = event.conversation_id;
+                            commandsExecuted = event.commands_executed || [];
+                        }
+                    } catch (e) {
+                        console.error('Error parsing SSE event:', e);
+                    }
+                }
+            }
         }
 
     } catch (error) {
-        typingIndicator.remove();
+        progressContainer.remove();
         addMessage('error', `Error: ${error.message}`);
         console.error('Chat error:', error);
     } finally {
         isLoading = false;
         setLoading(false);
+    }
+}
+
+/**
+ * Handle a streaming event
+ */
+function handleStreamEvent(event, progressContainer, commandsExecuted) {
+    switch (event.type) {
+        case 'thinking':
+            updateProgress(progressContainer, 'thinking', event.message);
+            break;
+
+        case 'executing':
+            updateProgress(progressContainer, 'executing', `Running: ${event.command}`);
+            addCommandStep(progressContainer, event.command, 'running');
+            break;
+
+        case 'result':
+            updateCommandStep(progressContainer, event.command, event.success, event.output);
+            break;
+
+        case 'fetching':
+            updateProgress(progressContainer, 'fetching', `Fetching: ${event.url}`);
+            addCommandStep(progressContainer, `Fetching ${event.url}`, 'running');
+            break;
+
+        case 'response':
+            // Remove progress container and show final response
+            progressContainer.remove();
+            addMessage('assistant', event.message, event.commands_executed);
+            if (event.error) {
+                addMessage('system', 'Note: The agent encountered an issue processing your request.');
+            }
+            break;
+
+        case 'error':
+            updateProgress(progressContainer, 'error', event.message);
+            break;
+    }
+}
+
+/**
+ * Add a progress container for streaming updates
+ */
+function addProgressContainer() {
+    const container = document.createElement('div');
+    container.className = 'progress-container';
+    container.innerHTML = `
+        <div class="progress-status">
+            <div class="progress-spinner"></div>
+            <span class="progress-text">Starting...</span>
+        </div>
+        <div class="progress-steps"></div>
+    `;
+    chatMessages.appendChild(container);
+    scrollToBottom();
+    return container;
+}
+
+/**
+ * Update progress status
+ */
+function updateProgress(container, type, message) {
+    const statusEl = container.querySelector('.progress-text');
+    if (statusEl) {
+        statusEl.textContent = message;
+    }
+    scrollToBottom();
+}
+
+/**
+ * Add a command step to the progress
+ */
+function addCommandStep(container, command, status) {
+    const stepsEl = container.querySelector('.progress-steps');
+    if (stepsEl) {
+        const step = document.createElement('div');
+        step.className = `progress-step ${status}`;
+        step.dataset.command = command;
+        step.innerHTML = `
+            <span class="step-icon">${status === 'running' ? '⏳' : '✓'}</span>
+            <code class="step-command">${escapeHtml(command)}</code>
+            <div class="step-output"></div>
+        `;
+        stepsEl.appendChild(step);
+        scrollToBottom();
+    }
+}
+
+/**
+ * Update a command step with result
+ */
+function updateCommandStep(container, command, success, output) {
+    const stepsEl = container.querySelector('.progress-steps');
+    if (stepsEl) {
+        // Find the step by command
+        const steps = stepsEl.querySelectorAll('.progress-step');
+        for (const step of steps) {
+            if (step.dataset.command === command || step.dataset.command === `Fetching ${command.replace('fetch ', '')}`) {
+                step.className = `progress-step ${success ? 'success' : 'error'}`;
+                step.querySelector('.step-icon').textContent = success ? '✓' : '✗';
+
+                if (output) {
+                    const outputEl = step.querySelector('.step-output');
+                    outputEl.innerHTML = `<pre>${escapeHtml(output)}</pre>`;
+                }
+                break;
+            }
+        }
+        scrollToBottom();
     }
 }
 
@@ -130,6 +258,9 @@ function addMessage(role, content, commandsExecuted = []) {
 
     // Convert inline code
     formattedContent = formattedContent.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // Convert **bold** to <strong>
+    formattedContent = formattedContent.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
 
     // Convert newlines to <br>
     formattedContent = formattedContent.replace(/\n/g, '<br>');
@@ -156,7 +287,7 @@ function addMessage(role, content, commandsExecuted = []) {
 }
 
 /**
- * Add typing indicator
+ * Add typing indicator (fallback for non-streaming)
  */
 function addTypingIndicator() {
     const indicator = document.createElement('div');
@@ -215,11 +346,11 @@ function startNewChat() {
         <div class="welcome-message" id="welcomeMessage">
             <h2>Welcome to Kubectl Agent</h2>
             <p>Ask me anything about your Kubernetes cluster.</p>
-            <p>I can run kubectl commands to get information and help you understand your cluster.</p>
+            <p>I can run kubectl and helm commands to help you manage your cluster.</p>
             <div class="example-queries">
                 <span class="example-query" onclick="useExample(this)">Show all pods</span>
                 <span class="example-query" onclick="useExample(this)">What nodes are in the cluster?</span>
-                <span class="example-query" onclick="useExample(this)">Are there any failing pods?</span>
+                <span class="example-query" onclick="useExample(this)">List all helm releases</span>
                 <span class="example-query" onclick="useExample(this)">Show recent events</span>
             </div>
         </div>

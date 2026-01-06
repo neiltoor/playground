@@ -4,13 +4,15 @@ Coordinates between Claude (via anthropic-service) and kubectl-service.
 """
 
 import os
+import json
 from typing import Optional, List
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
-from agent import run_agent, clear_conversation
+from agent import run_agent, run_agent_streaming, clear_conversation
 
 
 app = FastAPI(
@@ -88,6 +90,39 @@ async def chat(request: ChatRequest):
             status_code=500,
             detail=f"Agent error: {str(e)}"
         )
+
+
+@app.post("/chat/stream")
+async def chat_stream(request: ChatRequest):
+    """
+    Chat with the kubectl agent using Server-Sent Events for streaming.
+
+    Events sent:
+    - thinking: Agent is processing
+    - executing: Running a command
+    - result: Command result
+    - response: Final response
+    - error: Error occurred
+    """
+    async def event_generator():
+        try:
+            async for event in run_agent_streaming(
+                user_message=request.message,
+                conversation_id=request.conversation_id
+            ):
+                yield f"data: {json.dumps(event)}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
 
 
 @app.delete("/conversation/{conversation_id}")
