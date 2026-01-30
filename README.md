@@ -415,8 +415,7 @@ the-pipeline/
 │       └── admin.js                # Activity dashboard logic
 │
 ├── ssl/                            # SSL certificates
-│   ├── .gitignore                  # Excludes private keys
-│   └── *.csr                       # Certificate signing requests
+│   └── .gitignore                  # Excludes private keys
 │
 ├── db/
 │   └── init.sql                    # PostgreSQL + pgvector init
