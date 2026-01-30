@@ -100,6 +100,42 @@
             </div>
         </div>
 
+        <!-- Login Requests Section -->
+        <div class="login-requests-section" id="loginRequestsSection">
+            <div class="section-header">
+                <h2>Login Requests</h2>
+                <span class="pending-badge" id="pendingBadge">0 pending</span>
+            </div>
+
+            <div class="requests-filters">
+                <select id="requestStatusFilter">
+                    <option value="">All Requests</option>
+                    <option value="pending" selected>Pending</option>
+                    <option value="approved">Approved</option>
+                    <option value="rejected">Rejected</option>
+                </select>
+                <button class="btn btn-secondary" onclick="refreshLoginRequests()">Refresh</button>
+            </div>
+
+            <div class="table-wrapper">
+                <table class="activity-table" id="requestsTable">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Email</th>
+                            <th>Reason</th>
+                            <th>Status</th>
+                            <th>IP Address</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="requestsTableBody">
+                        <tr><td colspan="6" class="loading">Loading requests...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
         <!-- Filters -->
         <div class="filters-section">
             <div class="filter-group">
@@ -152,6 +188,55 @@
 
         <!-- Error Message -->
         <div id="errorMessage" class="error-message" style="display: none;"></div>
+    </div>
+
+    <!-- Approval Modal -->
+    <div class="modal" id="approvalModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Approve Login Request</h3>
+                <button class="modal-close" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="request-info">
+                    <p><strong>Email:</strong> <span id="approvalEmail"></span></p>
+                    <p><strong>Reason:</strong></p>
+                    <p class="reason-text" id="approvalReason"></p>
+                </div>
+
+                <form id="approvalForm">
+                    <div class="form-group">
+                        <label for="newUsername">Username</label>
+                        <input type="text" id="newUsername" required pattern="^[a-zA-Z0-9_@.+-]+$" minlength="3" placeholder="Enter username or email">
+                        <small>Username or email address</small>
+                    </div>
+                    <div class="form-group password-group">
+                        <label for="newPassword">Password</label>
+                        <div class="password-input-wrapper">
+                            <input type="text" id="newPassword" required minlength="6" placeholder="Enter password">
+                            <button type="button" class="btn-generate" onclick="generatePassword()">Generate</button>
+                        </div>
+                        <small>Minimum 6 characters</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="newRole">Role</label>
+                        <select id="newRole">
+                            <option value="user">User</option>
+                            <option value="admin">Admin</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="approvalNotes">Notes (optional)</label>
+                        <textarea id="approvalNotes" rows="2" placeholder="Admin notes..."></textarea>
+                    </div>
+
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Approve</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 
     <script src="js/admin.js"></script>

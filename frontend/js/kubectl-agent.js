@@ -140,6 +140,10 @@ function handleStreamEvent(event, progressContainer, commandsExecuted) {
     switch (event.type) {
         case 'thinking':
             updateProgress(progressContainer, 'thinking', event.message);
+            // Add thinking as a visible step (skip generic "Processing request...")
+            if (event.message && event.message !== 'Processing request...') {
+                addThinkingStep(progressContainer, event.message);
+            }
             break;
 
         case 'executing':
@@ -157,8 +161,14 @@ function handleStreamEvent(event, progressContainer, commandsExecuted) {
             break;
 
         case 'response':
-            // Remove progress container and show final response
-            progressContainer.remove();
+            // Keep progress steps but remove the spinner, then add final response
+            const spinner = progressContainer.querySelector('.progress-status');
+            if (spinner) spinner.remove();
+
+            // Mark container as complete
+            progressContainer.classList.add('complete');
+
+            // Add final response message
             addMessage('assistant', event.message, event.commands_executed);
             if (event.error) {
                 addMessage('system', 'Note: The agent encountered an issue processing your request.');
@@ -198,6 +208,23 @@ function updateProgress(container, type, message) {
         statusEl.textContent = message;
     }
     scrollToBottom();
+}
+
+/**
+ * Add a thinking step to show agent reasoning
+ */
+function addThinkingStep(container, message) {
+    const stepsEl = container.querySelector('.progress-steps');
+    if (stepsEl) {
+        const step = document.createElement('div');
+        step.className = 'progress-step thinking';
+        step.innerHTML = `
+            <span class="step-icon">💭</span>
+            <span class="step-thinking">${escapeHtml(message)}</span>
+        `;
+        stepsEl.appendChild(step);
+        scrollToBottom();
+    }
 }
 
 /**

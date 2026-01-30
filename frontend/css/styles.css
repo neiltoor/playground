@@ -827,6 +827,102 @@ header h1 {
     margin-bottom: var(--spacing-md);
 }
 
+/* Request Login Link on Login Page */
+.request-login-link {
+    margin-top: var(--spacing-lg);
+    text-align: center;
+    padding-top: var(--spacing-lg);
+    border-top: 1px solid var(--border-primary);
+}
+
+.request-login-link p {
+    color: var(--text-muted);
+    font-size: 0.875rem;
+    margin-bottom: var(--spacing-sm);
+}
+
+.request-login-link .btn-secondary {
+    display: inline-block;
+    text-decoration: none;
+}
+
+/* Login Link (Back to login) */
+.login-link {
+    margin-top: var(--spacing-lg);
+    text-align: center;
+}
+
+.login-link a {
+    color: var(--accent-primary);
+    text-decoration: none;
+    font-size: 0.875rem;
+}
+
+.login-link a:hover {
+    text-decoration: underline;
+}
+
+/* CAPTCHA styles for request-login */
+.captcha-group .captcha-challenge {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    margin-bottom: var(--spacing-sm);
+    padding: var(--spacing-md);
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-primary);
+}
+
+.captcha-group .captcha-challenge span {
+    flex: 1;
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.btn-refresh-captcha {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--text-muted);
+    padding: 4px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-fast);
+}
+
+.btn-refresh-captcha:hover {
+    color: var(--accent-primary);
+    background: var(--accent-light);
+}
+
+/* Textarea for reason field */
+.form-group textarea {
+    width: 100%;
+    padding: var(--spacing-md);
+    background: var(--bg-primary);
+    border: 1px solid var(--border-primary);
+    border-radius: var(--radius-md);
+    color: var(--text-primary);
+    font-size: 0.9375rem;
+    font-family: inherit;
+    resize: vertical;
+    min-height: 80px;
+    transition: all var(--transition-fast);
+}
+
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--accent-primary);
+    box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+.form-group textarea::placeholder {
+    color: var(--text-muted);
+}
+
 .spinner {
     width: 18px;
     height: 18px;

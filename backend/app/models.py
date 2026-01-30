@@ -128,3 +128,60 @@ class LLMCompareResponse(BaseModel):
     prompt: str
     anthropic: LLMResult
     openrouter: LLMResult
+
+
+# Login Request Models
+class CaptchaChallenge(BaseModel):
+    """CAPTCHA challenge for login requests."""
+    challenge_id: str
+    question: str
+
+
+class LoginRequestCreate(BaseModel):
+    """Request model for creating a login request."""
+    email: str = Field(..., min_length=5, max_length=255)
+    reason: str = Field(..., min_length=10, max_length=1000, description="Why you need access")
+    captcha_id: str
+    captcha_answer: str
+
+
+class LoginRequestResponse(BaseModel):
+    """Response model for login request creation."""
+    message: str
+    email: str
+
+
+class LoginRequestEntry(BaseModel):
+    """Model for login request entry (admin view)."""
+    id: int
+    email: str
+    reason: Optional[str] = None
+    status: str
+    request_ip: Optional[str] = None
+    user_agent: Optional[str] = None
+    created_at: datetime
+    reviewed_by: Optional[str] = None
+    reviewed_at: Optional[datetime] = None
+    assigned_username: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class LoginRequestsResponse(BaseModel):
+    """Response model for listing login requests."""
+    requests: List[LoginRequestEntry]
+    total: int
+    limit: int
+    offset: int
+
+
+class ApproveLoginRequestModel(BaseModel):
+    """Request model for approving a login request."""
+    username: str = Field(..., min_length=3, max_length=100, pattern=r'^[a-zA-Z0-9_@.+-]+$')
+    password: str = Field(..., min_length=6)
+    role: str = Field("user", pattern=r'^(admin|user)$')
+    notes: Optional[str] = None
+
+
+class RejectLoginRequestModel(BaseModel):
+    """Request model for rejecting a login request."""
+    notes: Optional[str] = None

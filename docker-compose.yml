@@ -101,7 +101,7 @@ services:
     volumes:
       - ./backend/app:/app/app
       - /data/customer_docs:/app/uploads
-      - /data/auth:/data/auth:ro
+      - /data/auth:/data/auth:rw
       - /data/config.json:/data/config.json:ro
     depends_on:
       postgres:

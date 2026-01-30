@@ -25,13 +25,15 @@ CRITICAL: You MUST respond with ONLY a valid JSON object. No other text before o
 You have THREE actions available:
 
 1. **Execute commands** (kubectl or helm):
-{"action": "execute", "commands": ["kubectl get pods -n default", "helm list -A"]}
+{"action": "execute", "reasoning": "Brief explanation of what you're doing and why", "commands": ["kubectl get pods -n default", "helm list -A"]}
 
 2. **Fetch a URL** (to read documentation, GitHub repos, helm chart info):
-{"action": "fetch", "url": "https://example.com/path"}
+{"action": "fetch", "reasoning": "Brief explanation of what you're fetching and why", "url": "https://example.com/path"}
 
 3. **Respond to the user** (final answer):
 {"action": "respond", "message": "Your helpful response here"}
+
+IMPORTANT: Always include "reasoning" field for execute and fetch actions to explain your thought process.
 
 IMPORTANT RULES:
 - Commands MUST include the tool prefix: "kubectl ..." or "helm ..."
@@ -39,6 +41,8 @@ IMPORTANT RULES:
 - Use fetch to read GitHub repos, documentation, or chart values before installing
 - After command results or fetch results, interpret them for the user
 - For helm installs, ALWAYS check if the repo is added first, add it if needed
+- NEVER use --dry-run unless the user explicitly requests a dry run. Execute commands for real.
+- Always provide a clear summary/conclusion after completing a task
 
 KUBECTL EXAMPLES:
 - "kubectl get pods -n default"
@@ -355,14 +359,13 @@ async def run_agent_streaming(user_message: str, conversation_id: Optional[str] 
     iteration = 0
     commands_this_turn = []
 
-    yield {"type": "thinking", "message": "Analyzing your request..."}
+    yield {"type": "thinking", "message": "Processing request..."}
 
     while iteration < MAX_AGENT_ITERATIONS:
         iteration += 1
 
         # Call Claude
         try:
-            yield {"type": "thinking", "message": "Consulting Claude for next action..."}
             claude_response = await call_anthropic(conv.messages, SYSTEM_PROMPT)
         except httpx.HTTPError as e:
             yield {
@@ -384,6 +387,8 @@ async def run_agent_streaming(user_message: str, conversation_id: Optional[str] 
 
         if action == "execute":
             commands = parsed.get("commands", [])
+            reasoning = parsed.get("reasoning", "")
+
             if not commands:
                 conv.messages.append({"role": "assistant", "content": claude_response})
                 yield {
@@ -394,6 +399,10 @@ async def run_agent_streaming(user_message: str, conversation_id: Optional[str] 
                     "error": False
                 }
                 return
+
+            # Show reasoning if provided
+            if reasoning:
+                yield {"type": "thinking", "message": reasoning}
 
             # Execute each command and collect results
             results = []
@@ -438,10 +447,12 @@ async def run_agent_streaming(user_message: str, conversation_id: Optional[str] 
             conv.messages.append({"role": "assistant", "content": claude_response})
             conv.messages.append({"role": "user", "content": results_message})
 
-            yield {"type": "thinking", "message": "Analyzing command results..."}
+            # Continue to let Claude analyze results
 
         elif action == "fetch":
             url = parsed.get("url", "")
+            reasoning = parsed.get("reasoning", "")
+
             if not url:
                 conv.messages.append({"role": "assistant", "content": claude_response})
                 yield {
@@ -452,6 +463,10 @@ async def run_agent_streaming(user_message: str, conversation_id: Optional[str] 
                     "error": True
                 }
                 return
+
+            # Show reasoning if provided
+            if reasoning:
+                yield {"type": "thinking", "message": reasoning}
 
             yield {"type": "fetching", "url": url}
 
@@ -476,7 +491,7 @@ async def run_agent_streaming(user_message: str, conversation_id: Optional[str] 
             conv.messages.append({"role": "assistant", "content": claude_response})
             conv.messages.append({"role": "user", "content": fetch_message})
 
-            yield {"type": "thinking", "message": "Processing fetched content..."}
+            # Continue to let Claude process fetched content
 
         elif action == "respond":
             message = parsed.get("message", claude_response)
