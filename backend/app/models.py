@@ -185,3 +185,69 @@ class ApproveLoginRequestModel(BaseModel):
 class RejectLoginRequestModel(BaseModel):
     """Request model for rejecting a login request."""
     notes: Optional[str] = None
+
+
+# Recipe Hunter Models
+class PantryItemCreate(BaseModel):
+    """Request model for adding a pantry item."""
+    item_name: str = Field(..., min_length=1, max_length=255)
+
+
+class PantryItem(BaseModel):
+    """Model for pantry item."""
+    id: int
+    item_name: str
+    created_at: datetime
+
+
+class PantryListResponse(BaseModel):
+    """Response model for listing pantry items."""
+    items: List[PantryItem]
+
+
+class RecipeGenerateRequest(BaseModel):
+    """Request model for generating recipes."""
+    cuisines: List[str] = Field(..., min_items=1, description="Selected cuisine vibes")
+    recipe_count: int = Field(5, ge=1, le=7, description="Number of recipes to generate")
+
+
+class Recipe(BaseModel):
+    """Model for a generated recipe."""
+    name: str
+    cuisine: str
+    ingredients: List[str]
+    ingredients_in_pantry: List[str]
+    ingredients_to_buy: List[str]
+    instructions: List[str]
+    prep_time: str
+
+
+class RecipeGenerateResponse(BaseModel):
+    """Response model for generated recipes."""
+    recipes: List[Recipe]
+    pantry_used: List[str]
+
+
+class SaveRecipeRequest(BaseModel):
+    """Request model for saving a recipe."""
+    recipe_name: str
+    cuisine: str
+    ingredients: str
+    instructions: str
+    prep_time: Optional[str] = None
+
+
+class SavedRecipe(BaseModel):
+    """Model for saved recipe."""
+    id: int
+    recipe_name: str
+    cuisine: Optional[str] = None
+    ingredients: Optional[str] = None
+    instructions: Optional[str] = None
+    prep_time: Optional[str] = None
+    created_at: datetime
+
+
+class SavedRecipesResponse(BaseModel):
+    """Response model for listing saved recipes."""
+    recipes: List[SavedRecipe]

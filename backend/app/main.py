@@ -9,7 +9,7 @@ from app.config import settings
 from app.database import check_database_connection
 from app.rag_engine import get_rag_engine
 from app.models import HealthResponse
-from app.api import upload, query, auth, llm_compare, activity, login_requests
+from app.api import upload, query, auth, llm_compare, activity, login_requests, recipe_hunter
 from app.middleware.activity_logger import ActivityLoggerMiddleware
 
 CONFIG_FILE_PATH = "/data/config.json"
@@ -121,6 +121,7 @@ app.include_router(query.router, prefix="/api", tags=["query"])
 app.include_router(llm_compare.router, prefix="/api", tags=["llm-compare"])
 app.include_router(activity.router, prefix="/api", tags=["activity"])
 app.include_router(login_requests.router, prefix="/api", tags=["login-requests"])
+app.include_router(recipe_hunter.router, prefix="/api", tags=["recipe-hunter"])
 
 
 @app.get("/")

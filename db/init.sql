@@ -39,5 +39,30 @@ CREATE TABLE IF NOT EXISTS login_requests (
 CREATE INDEX IF NOT EXISTS idx_login_requests_status ON login_requests(status);
 CREATE INDEX IF NOT EXISTS idx_login_requests_created_at ON login_requests(created_at);
 
+-- Pantry items for Recipe Hunter
+CREATE TABLE IF NOT EXISTS pantry_items (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(255) NOT NULL,
+    item_name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(username, item_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_pantry_items_username ON pantry_items(username);
+
+-- Saved recipes for Recipe Hunter
+CREATE TABLE IF NOT EXISTS saved_recipes (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(255) NOT NULL,
+    recipe_name VARCHAR(255) NOT NULL,
+    cuisine VARCHAR(50),
+    ingredients TEXT,
+    instructions TEXT,
+    prep_time VARCHAR(50),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_saved_recipes_username ON saved_recipes(username);
+
 -- Grant permissions
 GRANT ALL ON SCHEMA public TO raguser;
