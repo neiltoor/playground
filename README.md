@@ -13,7 +13,7 @@ An experiment in building software with AI. Nearly all the code here is written 
 
 # Neil's Playground
 
-A microservices-based AI playground with three main features: a RAG pipeline for comparing candidates, an inference interface for comparing LLM responses, and a natural language Kubernetes agent.
+A microservices-based AI playground with five main features: a RAG pipeline for comparing candidates, an inference interface for comparing LLM responses, a natural language Kubernetes agent, and an AI-powered recipe recommendation system.
 
 **Source Code:** [github.com/neiltoor/playground](https://github.com/neiltoor/playground)
 
@@ -53,6 +53,16 @@ Manage Kubernetes clusters using natural language commands.
 - Multi-turn conversations with context retention
 - Fetch documentation and GitHub repos for helm installs
 
+### 5. Recipe Hunter - AI-Powered Meal Planning
+Get personalized recipe recommendations based on your pantry and cuisine preferences.
+
+- Pantry management (add/remove ingredients, persisted per user)
+- Cuisine vibe selector (Italian, Chinese, Indian, American, Mexican, etc.)
+- AI-generated recipes using Claude based on available ingredients
+- Highlights ingredients in pantry vs items to buy
+- Save favorite recipes for later viewing
+- Configurable recipe count (1-7 per generation)
+
 ### General
 - SSL/TLS support (HTTPS)
 - JWT authentication with role-based access control
@@ -72,34 +82,66 @@ Manage Kubernetes clusters using natural language commands.
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Frontend (Nginx)                            │
-│                    Port 8443 (HTTPS)                             │
-│  login.html → landing.html → resume.html | llm-compare.html     │
-│                              kubectl.html                        │
-└─────────────────────────────────────────────────────────────────┘
-                               │
-          ┌────────────────────┴────────────────────┐
-          ▼                                         ▼
-┌─────────────────────────────────┐  ┌─────────────────────────────┐
-│        Backend (FastAPI)        │  │     Kubectl Agent           │
-│          Port 8000              │  │       Port 8004             │
-│  /api/login, /api/upload,       │  │  Natural language → kubectl │
-│  /api/query, /api/llm-compare   │  │  Streaming chat interface   │
-└─────────────────────────────────┘  └─────────────────────────────┘
-          │                    │              │           │
-          ▼                    ▼              ▼           ▼
-┌──────────────────┐  ┌──────────────┐  ┌──────────────────────────┐
-│ Anthropic Service│  │ OpenRouter   │  │    Kubectl Service       │
-│    Port 8001     │  │  Port 8002   │  │      Port 8003           │
-│  Claude API      │  │  Grok/xAI    │  │  kubectl/helm executor   │
-└──────────────────┘  └──────────────┘  └──────────────────────────┘
-          │
-          ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│                           Frontend (Nginx)                               │
+│                         Port 8443 (HTTPS)                                │
+│  login.html → landing.html → resume.html | llm-compare.html             │
+│                              kubectl-agent.html | recipe-hunter.html    │
+└─────────────────────────────────────────────────────────────────────────┘
+                                    │
+           ┌────────────────────────┴────────────────────────┐
+           ▼                                                  ▼
+┌───────────────────────────────────┐       ┌─────────────────────────────┐
+│         Backend (FastAPI)         │       │      Kubectl Agent          │
+│           Port 8000               │       │        Port 8004            │
+│  /api/login, /api/upload,         │       │  Natural language → kubectl │
+│  /api/query, /api/llm-compare,    │       │  Streaming chat interface   │
+│  /api/pantry, /api/recipes        │       └─────────────────────────────┘
+└───────────────────────────────────┘                   │           │
+           │                    │                       ▼           ▼
+           ▼                    ▼              ┌──────────────────────────┐
+┌──────────────────┐  ┌──────────────────┐     │    Kubectl Service       │
+│ Anthropic Service│  │ OpenRouter       │     │      Port 8003           │
+│    Port 8001     │  │   Port 8002      │     │  kubectl/helm executor   │
+│  Claude API      │  │   Grok/xAI       │     └──────────────────────────┘
+└──────────────────┘  └──────────────────┘
+           │
+           ▼
 ┌──────────────────┐
 │   PostgreSQL     │
 │   (pgvector)     │
+│                  │
+│  Tables:         │
+│  - documents     │
+│  - activity_log  │
+│  - pantry_items  │
+│  - saved_recipes │
 └──────────────────┘
+```
+
+### Service Communication Diagram
+
+```
+┌─────────────┐     HTTPS      ┌─────────────┐
+│   Browser   │◄──────────────►│   Nginx     │
+└─────────────┘                └──────┬──────┘
+                                      │
+              ┌───────────────────────┼───────────────────────┐
+              │                       │                       │
+              ▼                       ▼                       ▼
+     ┌────────────────┐      ┌────────────────┐      ┌────────────────┐
+     │    Backend     │      │ Kubectl Agent  │      │ Static Files   │
+     │   :8000        │      │    :8004       │      │   (HTML/JS)    │
+     └───────┬────────┘      └───────┬────────┘      └────────────────┘
+             │                       │
+    ┌────────┼────────┐              │
+    │        │        │              │
+    ▼        ▼        ▼              ▼
+┌───────┐┌───────┐┌────────┐  ┌────────────┐
+│Claude ││Grok   ││Postgres│  │  Kubectl   │
+│:8001  ││:8002  ││:5432   │  │  Service   │
+└───────┘└───────┘└────────┘  │   :8003    │
+                              └────────────┘
 ```
 
 ### Database Schema
@@ -132,10 +174,37 @@ PostgreSQL + pgvector extension
 │  details         TEXT          JSON with extra info              │
 └─────────────────────────────────────────────────────────────────┘
 
+┌─────────────────────────────────────────────────────────────────┐
+│                        pantry_items                              │
+│                    (Recipe Hunter Pantry)                        │
+├─────────────────────────────────────────────────────────────────┤
+│  id              SERIAL        PRIMARY KEY                       │
+│  username        VARCHAR(255)  Owner of pantry item              │
+│  item_name       VARCHAR(255)  Ingredient name                   │
+│  created_at      TIMESTAMP     When added                        │
+│  UNIQUE(username, item_name)                                     │
+└─────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────┐
+│                       saved_recipes                              │
+│                   (Recipe Hunter Favorites)                      │
+├─────────────────────────────────────────────────────────────────┤
+│  id              SERIAL        PRIMARY KEY                       │
+│  username        VARCHAR(255)  Who saved the recipe              │
+│  recipe_name     VARCHAR(255)  Name of the recipe                │
+│  cuisine         VARCHAR(50)   Cuisine type                      │
+│  ingredients     TEXT          JSON array of ingredients         │
+│  instructions    TEXT          JSON array of steps               │
+│  prep_time       VARCHAR(50)   Estimated prep time               │
+│  created_at      TIMESTAMP     When saved                        │
+└─────────────────────────────────────────────────────────────────┘
+
 Indexes:
   - idx_activity_log_username
   - idx_activity_log_timestamp
   - idx_activity_log_activity_type
+  - idx_pantry_items_username
+  - idx_saved_recipes_username
 ```
 
 ## Prerequisites
@@ -206,6 +275,8 @@ This will start:
 2. **Choose a tool** from the landing page:
    - **RAG Pipeline**: Upload resumes/documents and ask AI questions about candidates
    - **Inference Interface**: Compare Claude vs Grok responses side-by-side
+   - **Kubectl Agent**: Manage Kubernetes with natural language
+   - **Recipe Hunter**: Get AI-powered recipe recommendations
    - **Activity Dashboard** (admin only): Monitor login events and API usage
 
 ## API Endpoints
@@ -300,6 +371,74 @@ Authorization: Bearer <admin_token>
 Response: { "by_type": {"login": 10, "api_call": 50}, "last_24_hours": 60, "unique_users_today": 3 }
 ```
 
+### Recipe Hunter
+
+```
+GET /api/cuisines
+Authorization: Bearer <token>
+
+Response: { "cuisines": ["Italian", "Chinese", "Indian", ...] }
+```
+
+```
+GET /api/pantry
+Authorization: Bearer <token>
+
+Response: { "items": [{ "id": 1, "item_name": "Chicken", "created_at": "..." }] }
+```
+
+```
+POST /api/pantry
+Authorization: Bearer <token>
+Content-Type: application/json
+
+Body: { "item_name": "Rice" }
+Response: { "id": 2, "item_name": "Rice", "created_at": "..." }
+```
+
+```
+DELETE /api/pantry/{item_id}
+Authorization: Bearer <token>
+
+Response: { "message": "Item removed" }
+```
+
+```
+POST /api/recipes/generate
+Authorization: Bearer <token>
+Content-Type: application/json
+
+Body: { "cuisines": ["Italian", "Chinese"], "recipe_count": 5 }
+Response: {
+  "recipes": [{
+    "name": "...",
+    "cuisine": "Italian",
+    "ingredients": [...],
+    "ingredients_in_pantry": [...],
+    "ingredients_to_buy": [...],
+    "instructions": [...],
+    "prep_time": "30 minutes"
+  }],
+  "pantry_used": [...]
+}
+```
+
+```
+GET /api/recipes/saved
+Authorization: Bearer <token>
+
+Response: { "recipes": [{ "id": 1, "recipe_name": "...", "cuisine": "...", ... }] }
+```
+
+```
+POST /api/recipes/save
+Authorization: Bearer <token>
+Content-Type: application/json
+
+Body: { "recipe_name": "...", "cuisine": "...", "ingredients": "...", "instructions": "..." }
+Response: { "id": 1, "recipe_name": "...", ... }
+```
+
 ### Health
 
 ```
@@ -369,9 +508,11 @@ the-pipeline/
 │       │   ├── upload.py           # Document upload (RAG)
 │       │   ├── query.py            # RAG query
 │       │   ├── llm_compare.py      # Inference interface endpoint
-│       │   └── activity.py         # Activity monitoring (admin)
+│       │   ├── activity.py         # Activity monitoring (admin)
+│       │   └── recipe_hunter.py    # Recipe Hunter endpoints
 │       ├── services/
-│       │   └── activity_service.py # Activity logging service
+│       │   ├── activity_service.py # Activity logging service
+│       │   └── recipe_service.py   # Recipe Hunter logic
 │       ├── middleware/
 │       │   └── activity_logger.py  # Request logging middleware
 │       └── tests/                  # Unit tests
@@ -401,7 +542,8 @@ the-pipeline/
 │   ├── landing.html                # Tool selection
 │   ├── resume.html                 # RAG Pipeline interface
 │   ├── llm-compare.html            # Inference Interface
-│   ├── kubectl.html                # Kubectl Agent interface
+│   ├── kubectl-agent.html          # Kubectl Agent interface
+│   ├── recipe-hunter.html          # Recipe Hunter interface
 │   ├── admin.html                  # Activity Dashboard (admin)
 │   ├── css/
 │   │   ├── styles.css              # Glassmorphism styling
@@ -411,7 +553,8 @@ the-pipeline/
 │       ├── landing.js
 │       ├── app.js                  # RAG tool logic
 │       ├── llm-compare.js          # Inference interface logic
-│       ├── kubectl.js              # Kubectl agent logic
+│       ├── kubectl-agent.js        # Kubectl agent logic
+│       ├── recipe-hunter.js        # Recipe Hunter logic
 │       └── admin.js                # Activity dashboard logic
 │
 ├── ssl/                            # SSL certificates
