@@ -251,3 +251,34 @@ class SavedRecipe(BaseModel):
 class SavedRecipesResponse(BaseModel):
     """Response model for listing saved recipes."""
     recipes: List[SavedRecipe]
+
+
+# Shopping List Models
+class ShoppingListItemCreate(BaseModel):
+    """Request model for adding a shopping list item."""
+    item_name: str = Field(..., min_length=1, max_length=255)
+
+
+class ShoppingListItem(BaseModel):
+    """Model for shopping list item."""
+    id: int
+    item_name: str
+    created_at: datetime
+
+
+class ShoppingListResponse(BaseModel):
+    """Response model for listing shopping list items."""
+    items: List[ShoppingListItem]
+
+
+# Vibe Search Models
+class VibeSearchRequest(BaseModel):
+    """Request model for vibe/craving search."""
+    vibe: str = Field(..., min_length=3, max_length=500, description="What you're craving")
+    recipe_count: int = Field(3, ge=1, le=5, description="Number of recipes to generate")
+
+
+class ShoppingListRecipeRequest(BaseModel):
+    """Request model for generating recipes from shopping list."""
+    recipe_count: int = Field(3, ge=1, le=5, description="Number of recipes to generate")
+    include_pantry: bool = Field(False, description="Also include pantry items")

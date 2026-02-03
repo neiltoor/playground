@@ -64,5 +64,16 @@ CREATE TABLE IF NOT EXISTS saved_recipes (
 
 CREATE INDEX IF NOT EXISTS idx_saved_recipes_username ON saved_recipes(username);
 
+-- Shopping list for Recipe Hunter
+CREATE TABLE IF NOT EXISTS shopping_list (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(255) NOT NULL,
+    item_name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(username, item_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_shopping_list_username ON shopping_list(username);
+
 -- Grant permissions
 GRANT ALL ON SCHEMA public TO raguser;

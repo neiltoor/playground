@@ -4,17 +4,37 @@ const API_BASE_URL = '/api';
 const AUTH_TOKEN_KEY = 'auth_token';
 const USERNAME_KEY = 'username';
 
-// DOM Elements
+// DOM Elements - Pantry
 const pantryInput = document.getElementById('pantryInput');
 const addPantryBtn = document.getElementById('addPantryBtn');
 const pantryList = document.getElementById('pantryList');
 const emptyPantry = document.getElementById('emptyPantry');
+
+// DOM Elements - Vibe Search
+const vibeInput = document.getElementById('vibeInput');
+const vibeSearchBtn = document.getElementById('vibeSearchBtn');
+const vibeSearchBtnText = document.getElementById('vibeSearchBtnText');
+const vibeSearchBtnSpinner = document.getElementById('vibeSearchBtnSpinner');
+
+// DOM Elements - Shopping List
+const shoppingInput = document.getElementById('shoppingInput');
+const addShoppingBtn = document.getElementById('addShoppingBtn');
+const shoppingList = document.getElementById('shoppingList');
+const emptyShopping = document.getElementById('emptyShopping');
+const includePantry = document.getElementById('includePantry');
+const shoppingRecipesBtn = document.getElementById('shoppingRecipesBtn');
+const shoppingRecipesBtnText = document.getElementById('shoppingRecipesBtnText');
+const shoppingRecipesBtnSpinner = document.getElementById('shoppingRecipesBtnSpinner');
+
+// DOM Elements - Generate
 const cuisineGrid = document.getElementById('cuisineGrid');
 const recipeCount = document.getElementById('recipeCount');
 const recipeCountDisplay = document.getElementById('recipeCountDisplay');
 const generateBtn = document.getElementById('generateBtn');
 const generateBtnText = document.getElementById('generateBtnText');
 const generateBtnSpinner = document.getElementById('generateBtnSpinner');
+
+// DOM Elements - Results
 const recipesSection = document.getElementById('recipesSection');
 const recipesGrid = document.getElementById('recipesGrid');
 const loadingSection = document.getElementById('loadingSection');
@@ -26,6 +46,7 @@ const errorMessage = document.getElementById('errorMessage');
 
 // State
 let pantryItems = [];
+let shoppingItems = [];
 let savedRecipes = [];
 let generatedRecipes = [];
 
@@ -43,6 +64,7 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAuthentication();
     initializeEventListeners();
     loadPantry();
+    loadShoppingList();
     loadCuisines();
     loadSavedRecipes();
 });
@@ -95,6 +117,25 @@ function initializeEventListeners() {
         if (e.key === 'Enter') {
             e.preventDefault();
             addPantryItem();
+        }
+    });
+
+    // Shopping List
+    addShoppingBtn.addEventListener('click', addShoppingItem);
+    shoppingInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            addShoppingItem();
+        }
+    });
+    shoppingRecipesBtn.addEventListener('click', generateFromShoppingList);
+
+    // Vibe Search
+    vibeSearchBtn.addEventListener('click', vibeSearch);
+    vibeInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            vibeSearch();
         }
     });
 
@@ -208,6 +249,368 @@ async function removePantryItem(itemId) {
     } catch (error) {
         console.error('Error removing pantry item:', error);
         showError('Failed to remove item');
+    }
+}
+
+// ============================================
+// Shopping List Functions
+// ============================================
+
+async function loadShoppingList() {
+    try {
+        const response = await fetch(`${API_BASE_URL}/shopping-list`, {
+            headers: getAuthHeaders()
+        });
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (!response.ok) throw new Error('Failed to load shopping list');
+
+        const data = await response.json();
+        shoppingItems = data.items || [];
+        renderShoppingList();
+    } catch (error) {
+        console.error('Error loading shopping list:', error);
+    }
+}
+
+function renderShoppingList() {
+    if (shoppingItems.length === 0) {
+        emptyShopping.style.display = 'block';
+        shoppingList.innerHTML = '';
+        shoppingList.appendChild(emptyShopping);
+        return;
+    }
+
+    emptyShopping.style.display = 'none';
+    shoppingList.innerHTML = shoppingItems.map(item => `
+        <div class="shopping-item" data-id="${item.id}">
+            <span class="shopping-item-name">${escapeHtml(item.item_name)}</span>
+            <button class="shopping-item-remove" onclick="removeShoppingItem(${item.id})" title="Remove">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+    `).join('');
+}
+
+async function addShoppingItem() {
+    const itemName = shoppingInput.value.trim();
+    if (!itemName) return;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/shopping-list`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({ item_name: itemName })
+        });
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (!response.ok) {
+            const error = await response.json();
+            showError(error.detail || 'Failed to add item');
+            return;
+        }
+
+        const newItem = await response.json();
+        shoppingItems.push(newItem);
+        shoppingInput.value = '';
+        renderShoppingList();
+    } catch (error) {
+        console.error('Error adding shopping item:', error);
+        showError('Failed to add item');
+    }
+}
+
+async function removeShoppingItem(itemId) {
+    try {
+        const response = await fetch(`${API_BASE_URL}/shopping-list/${itemId}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (!response.ok) throw new Error('Failed to remove item');
+
+        shoppingItems = shoppingItems.filter(item => item.id !== itemId);
+        renderShoppingList();
+    } catch (error) {
+        console.error('Error removing shopping item:', error);
+        showError('Failed to remove item');
+    }
+}
+
+async function generateFromShoppingList() {
+    if (shoppingItems.length === 0) {
+        showError('Please add some items to your shopping list first');
+        return;
+    }
+
+    setShoppingLoading(true);
+    recipesSection.style.display = 'none';
+    loadingSection.style.display = 'block';
+    hideError();
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/recipes/from-shopping-list`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+                recipe_count: 3,
+                include_pantry: includePantry.checked
+            })
+        });
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to generate recipes');
+        }
+
+        const data = await response.json();
+        generatedRecipes = data.recipes || [];
+        renderShoppingRecipes(data.shopping_list_used, data.pantry_used);
+    } catch (error) {
+        console.error('Error generating recipes from shopping list:', error);
+        showError(error.message || 'Failed to generate recipes');
+    } finally {
+        setShoppingLoading(false);
+        loadingSection.style.display = 'none';
+    }
+}
+
+function renderShoppingRecipes(shoppingUsed, pantryUsed) {
+    if (generatedRecipes.length === 0) {
+        recipesSection.style.display = 'none';
+        return;
+    }
+
+    recipesSection.style.display = 'block';
+    recipesGrid.innerHTML = generatedRecipes.map((recipe, index) => `
+        <div class="recipe-card" data-index="${index}">
+            <div class="recipe-card-header">
+                <h3 class="recipe-name">${escapeHtml(recipe.name)}</h3>
+                <span class="recipe-cuisine-badge">${escapeHtml(recipe.cuisine)}</span>
+            </div>
+            <div class="recipe-time">${escapeHtml(recipe.prep_time || 'Time varies')}</div>
+
+            <div class="recipe-ingredients">
+                <p class="recipe-section-title">Ingredients</p>
+                <ul class="ingredient-list">
+                    ${(recipe.from_shopping_list || []).map(ing =>
+                        `<li class="ingredient-from-shopping">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="9" cy="21" r="1"></circle>
+                                <circle cx="20" cy="21" r="1"></circle>
+                                <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path>
+                            </svg>
+                            ${escapeHtml(ing)} (shopping list)
+                        </li>`
+                    ).join('')}
+                    ${(recipe.from_pantry || []).map(ing =>
+                        `<li class="ingredient-from-pantry">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            ${escapeHtml(ing)} (in pantry)
+                        </li>`
+                    ).join('')}
+                    ${(recipe.additional_needed || []).map(ing =>
+                        `<li class="ingredient-additional">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                            ${escapeHtml(ing)} (extra needed)
+                        </li>`
+                    ).join('')}
+                </ul>
+            </div>
+
+            <div class="recipe-instructions">
+                <p class="recipe-section-title">Instructions</p>
+                <ol class="instruction-list">
+                    ${(recipe.instructions || []).map(step =>
+                        `<li>${escapeHtml(step)}</li>`
+                    ).join('')}
+                </ol>
+            </div>
+
+            <div class="recipe-actions">
+                <button class="btn btn-primary btn-save" onclick="saveRecipe(${index})">
+                    Save Recipe
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function setShoppingLoading(loading) {
+    shoppingRecipesBtn.disabled = loading;
+    shoppingRecipesBtnText.style.display = loading ? 'none' : 'inline';
+    shoppingRecipesBtnSpinner.style.display = loading ? 'inline-block' : 'none';
+}
+
+// ============================================
+// Vibe Search Functions
+// ============================================
+
+async function vibeSearch() {
+    const vibe = vibeInput.value.trim();
+
+    if (!vibe || vibe.length < 3) {
+        showError('Please describe what you\'re craving (at least 3 characters)');
+        return;
+    }
+
+    setVibeLoading(true);
+    recipesSection.style.display = 'none';
+    loadingSection.style.display = 'block';
+    hideError();
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/recipes/vibe-search`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+                vibe: vibe,
+                recipe_count: 3
+            })
+        });
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to search recipes');
+        }
+
+        const data = await response.json();
+        generatedRecipes = data.recipes || [];
+        renderVibeRecipes();
+    } catch (error) {
+        console.error('Error in vibe search:', error);
+        showError(error.message || 'Failed to search recipes');
+    } finally {
+        setVibeLoading(false);
+        loadingSection.style.display = 'none';
+    }
+}
+
+function renderVibeRecipes() {
+    if (generatedRecipes.length === 0) {
+        recipesSection.style.display = 'none';
+        return;
+    }
+
+    recipesSection.style.display = 'block';
+    recipesGrid.innerHTML = generatedRecipes.map((recipe, index) => `
+        <div class="recipe-card" data-index="${index}">
+            <div class="recipe-card-header">
+                <h3 class="recipe-name">${escapeHtml(recipe.name)}</h3>
+                <span class="recipe-cuisine-badge">${escapeHtml(recipe.cuisine)}</span>
+            </div>
+            <div class="recipe-time">${escapeHtml(recipe.prep_time || 'Time varies')}</div>
+
+            <div class="recipe-ingredients">
+                <p class="recipe-section-title">Ingredients</p>
+                <ul class="ingredient-list">
+                    ${(recipe.ingredients || []).map(ing =>
+                        `<li class="ingredient-additional">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="20 6 9 17 4 12"></polyline>
+                            </svg>
+                            ${escapeHtml(ing)}
+                        </li>`
+                    ).join('')}
+                </ul>
+            </div>
+
+            <div class="recipe-instructions">
+                <p class="recipe-section-title">Instructions</p>
+                <ol class="instruction-list">
+                    ${(recipe.instructions || []).map(step =>
+                        `<li>${escapeHtml(step)}</li>`
+                    ).join('')}
+                </ol>
+            </div>
+
+            <div class="recipe-actions">
+                <button class="btn btn-primary btn-save" onclick="saveVibeRecipe(${index})">
+                    Save Recipe
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function setVibeLoading(loading) {
+    vibeSearchBtn.disabled = loading;
+    vibeSearchBtnText.style.display = loading ? 'none' : 'inline';
+    vibeSearchBtnSpinner.style.display = loading ? 'inline-block' : 'none';
+}
+
+async function saveVibeRecipe(index) {
+    const recipe = generatedRecipes[index];
+    if (!recipe) return;
+
+    try {
+        const response = await fetch(`${API_BASE_URL}/recipes/save`, {
+            method: 'POST',
+            headers: getAuthHeaders(),
+            body: JSON.stringify({
+                recipe_name: recipe.name,
+                cuisine: recipe.cuisine,
+                ingredients: JSON.stringify(recipe.ingredients || []),
+                instructions: JSON.stringify(recipe.instructions || []),
+                prep_time: recipe.prep_time
+            })
+        });
+
+        if (response.status === 401) {
+            handleAuthError();
+            return;
+        }
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.detail || 'Failed to save recipe');
+        }
+
+        const savedRecipe = await response.json();
+        savedRecipes.unshift(savedRecipe);
+        renderSavedRecipes();
+
+        // Update button to show saved
+        const btn = document.querySelector(`.recipe-card[data-index="${index}"] .btn-save`);
+        if (btn) {
+            btn.textContent = 'Saved!';
+            btn.classList.add('btn-saved');
+            btn.disabled = true;
+        }
+    } catch (error) {
+        console.error('Error saving recipe:', error);
+        showError(error.message || 'Failed to save recipe');
     }
 }
 

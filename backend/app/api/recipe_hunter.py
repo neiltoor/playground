@@ -14,7 +14,12 @@ from app.models import (
     Recipe,
     SaveRecipeRequest,
     SavedRecipe,
-    SavedRecipesResponse
+    SavedRecipesResponse,
+    ShoppingListItem,
+    ShoppingListItemCreate,
+    ShoppingListResponse,
+    VibeSearchRequest,
+    ShoppingListRecipeRequest
 )
 from app.services.recipe_service import RecipeService, CUISINES
 
@@ -151,3 +156,100 @@ async def delete_saved_recipe(
         )
 
     return {"message": "Recipe deleted"}
+
+
+# --- Shopping List Endpoints ---
+
+@router.get("/shopping-list", response_model=ShoppingListResponse)
+async def get_shopping_list(user: dict = Depends(get_current_user)):
+    """Get user's shopping list items."""
+    items = RecipeService.get_shopping_list(user["username"])
+    return ShoppingListResponse(
+        items=[ShoppingListItem(**item) for item in items]
+    )
+
+
+@router.post("/shopping-list", response_model=ShoppingListItem)
+async def add_shopping_item(
+    item: ShoppingListItemCreate,
+    user: dict = Depends(get_current_user)
+):
+    """Add an item to user's shopping list."""
+    result = RecipeService.add_shopping_item(user["username"], item.item_name)
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("error", "Failed to add item")
+        )
+
+    return ShoppingListItem(**result["item"])
+
+
+@router.delete("/shopping-list/{item_id}")
+async def remove_shopping_item(
+    item_id: int,
+    user: dict = Depends(get_current_user)
+):
+    """Remove an item from user's shopping list."""
+    result = RecipeService.remove_shopping_item(user["username"], item_id)
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=result.get("error", "Item not found")
+        )
+
+    return {"message": "Item removed"}
+
+
+# --- Vibe Search ---
+
+@router.post("/recipes/vibe-search")
+async def vibe_search(
+    request: VibeSearchRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Search for recipes based on a craving/vibe description."""
+    result = await RecipeService.search_by_vibe(
+        vibe=request.vibe,
+        recipe_count=request.recipe_count
+    )
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("error", "Failed to search recipes")
+        )
+
+    return {
+        "recipes": result["recipes"],
+        "vibe": result["vibe"]
+    }
+
+
+# --- Shopping List Recipe Generation ---
+
+@router.post("/recipes/from-shopping-list")
+async def generate_from_shopping_list(
+    request: ShoppingListRecipeRequest,
+    user: dict = Depends(get_current_user)
+):
+    """Generate recipes based on shopping list items."""
+    result = await RecipeService.generate_from_shopping_list(
+        username=user["username"],
+        recipe_count=request.recipe_count,
+        include_pantry=request.include_pantry
+    )
+
+    if not result["success"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=result.get("error", "Failed to generate recipes")
+        )
+
+    return {
+        "recipes": result["recipes"],
+        "shopping_list_used": result["shopping_list_used"],
+        "pantry_used": result["pantry_used"]
+    }
