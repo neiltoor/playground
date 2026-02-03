@@ -54,14 +54,16 @@ Manage Kubernetes clusters using natural language commands.
 - Fetch documentation and GitHub repos for helm installs
 
 ### 5. Recipe Hunter - AI-Powered Meal Planning
-Get personalized recipe recommendations based on your pantry and cuisine preferences.
+Get personalized recipe recommendations based on your pantry, shopping list, or cravings.
 
-- Pantry management (add/remove ingredients, persisted per user)
+- **Vibe Search**: Describe what you're craving in free text (e.g., "smoky sausage mac n cheese", "light summer salad") and get matching recipes
+- **Shopping List**: Track items you plan to buy and generate recipes based on them
+- **Pantry Management**: Add/remove ingredients you have on hand (persisted per user)
+- **Combined Search**: Generate recipes using both pantry and shopping list items
 - Cuisine vibe selector (Italian, Chinese, Indian, American, Mexican, etc.)
-- AI-generated recipes using Claude based on available ingredients
-- Highlights ingredients in pantry vs items to buy
+- AI-generated recipes using Claude
+- Highlights ingredients by source (pantry, shopping list, or extra needed)
 - Save favorite recipes for later viewing
-- Configurable recipe count (1-7 per generation)
 
 ### General
 - SSL/TLS support (HTTPS)
@@ -116,6 +118,7 @@ Get personalized recipe recommendations based on your pantry and cuisine prefere
 │  - activity_log  │
 │  - pantry_items  │
 │  - saved_recipes │
+│  - shopping_list │
 └──────────────────┘
 ```
 
@@ -199,12 +202,24 @@ PostgreSQL + pgvector extension
 │  created_at      TIMESTAMP     When saved                        │
 └─────────────────────────────────────────────────────────────────┘
 
+┌─────────────────────────────────────────────────────────────────┐
+│                       shopping_list                              │
+│                  (Recipe Hunter Shopping)                        │
+├─────────────────────────────────────────────────────────────────┤
+│  id              SERIAL        PRIMARY KEY                       │
+│  username        VARCHAR(255)  Owner of shopping item            │
+│  item_name       VARCHAR(255)  Item to buy                       │
+│  created_at      TIMESTAMP     When added                        │
+│  UNIQUE(username, item_name)                                     │
+└─────────────────────────────────────────────────────────────────┘
+
 Indexes:
   - idx_activity_log_username
   - idx_activity_log_timestamp
   - idx_activity_log_activity_type
   - idx_pantry_items_username
   - idx_saved_recipes_username
+  - idx_shopping_list_username
 ```
 
 ## Prerequisites
@@ -437,6 +452,68 @@ Content-Type: application/json
 
 Body: { "recipe_name": "...", "cuisine": "...", "ingredients": "...", "instructions": "..." }
 Response: { "id": 1, "recipe_name": "...", ... }
+```
+
+```
+GET /api/shopping-list
+Authorization: Bearer <token>
+
+Response: { "items": [{ "id": 1, "item_name": "Sausage", "created_at": "..." }] }
+```
+
+```
+POST /api/shopping-list
+Authorization: Bearer <token>
+Content-Type: application/json
+
+Body: { "item_name": "Pasta" }
+Response: { "id": 2, "item_name": "Pasta", "created_at": "..." }
+```
+
+```
+DELETE /api/shopping-list/{item_id}
+Authorization: Bearer <token>
+
+Response: { "message": "Item removed" }
+```
+
+```
+POST /api/recipes/vibe-search
+Authorization: Bearer <token>
+Content-Type: application/json
+
+Body: { "vibe": "smoky sausage mac n cheese", "recipe_count": 3 }
+Response: {
+  "recipes": [{
+    "name": "Smoky Kielbasa Mac and Cheese",
+    "cuisine": "American Comfort Food",
+    "ingredients": [...],
+    "instructions": [...],
+    "prep_time": "45 minutes"
+  }],
+  "vibe": "smoky sausage mac n cheese"
+}
+```
+
+```
+POST /api/recipes/from-shopping-list
+Authorization: Bearer <token>
+Content-Type: application/json
+
+Body: { "recipe_count": 3, "include_pantry": true }
+Response: {
+  "recipes": [{
+    "name": "...",
+    "cuisine": "...",
+    "from_shopping_list": ["sausage", "pasta"],
+    "from_pantry": ["cheese", "milk"],
+    "additional_needed": ["breadcrumbs"],
+    "instructions": [...],
+    "prep_time": "..."
+  }],
+  "shopping_list_used": [...],
+  "pantry_used": [...]
+}
 ```
 
 ### Health
